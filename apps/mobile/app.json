@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "المحكّم القرآني",
+    "slug": "tahkeem",
+    "scheme": "tahkeem",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#006b33"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.tahkeem.judge",
+      "infoPlist": {
+        "NSCameraUsageDescription": "نحتاج إلى الكاميرا لمسح بطاقة تعريف المحكّم"
+      }
+    },
+    "android": {
+      "package": "org.tahkeem.judge",
+      "adaptiveIcon": {
+        "backgroundColor": "#006b33"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "نحتاج إلى الكاميرا لمسح بطاقة تعريف المحكّم"
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

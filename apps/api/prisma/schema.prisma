@@ -1,0 +1,392 @@
+// منصة تحكيم المسابقات القرآنية — الفرع المحلي عمر بن الخطاب، دار شعبان الفهري
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Identity ───────────────────────────
+
+enum UserRole {
+  ADMIN
+  JUDGE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole  @default(JUDGE)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  judge Judge?
+
+  @@map("users")
+}
+
+/// A member of the judging panel (قائمة المحكّمين). A Judge exists independently
+/// of a User: most judges never get a permanent login, only temporary QR access.
+model Judge {
+  id         String  @id @default(cuid())
+  externalNo Int?
+  fullName   String
+  gender     Gender
+  residence  String?
+  /// Set only when the judge has a permanent password login.
+  userId     String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  accessSessions  JudgeAccess[]
+  judgingSessions JudgingSession[]
+  assignments     CategoryJudge[]
+
+  @@index([fullName])
+  @@map("judges")
+}
+
+/// A short-lived credential handed to a judge as a QR code. The QR encodes the
+/// plaintext token; only its SHA-256 hash is stored, so a database leak cannot
+/// be replayed. Single-use: `consumedAt` is stamped on first exchange.
+model JudgeAccess {
+  id            String    @id @default(cuid())
+  judgeId       String
+  competitionId String
+  /// SHA-256 of the token embedded in the QR code.
+  tokenHash     String    @unique
+  /// Human-readable code shown under the QR (e.g. QX-9902) for support calls.
+  displayCode   String
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  judge       Judge       @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@index([judgeId])
+  @@index([competitionId])
+  @@index([expiresAt])
+  @@map("judge_access")
+}
+
+// ─────────────────────────── Quran ───────────────────────────
+
+/// The Qaloun mushaf (rivayat Qalun 'an Nafi'), 6214 verses. `id` is the global
+/// verse ordinal and is the unit every range in the system is expressed in.
+model QuranVerse {
+  id         Int    @id
+  jozz       Int
+  hizbNumber Int
+  page       String
+  suraNumber Int
+  suraNameAr String
+  suraNameEn String
+  ayaNumber  Int
+  lineStart  Int
+  lineEnd    Int
+  ayaText    String
+
+  questions Question[]
+
+  @@index([suraNumber, ayaNumber])
+  @@index([page])
+  @@index([hizbNumber])
+  @@index([jozz])
+  @@map("quran_verses")
+}
+
+// ─────────────────────────── Competition ───────────────────────────
+
+enum CompetitionStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model Competition {
+  id        String            @id @default(cuid())
+  name      String
+  location  String?
+  startDate DateTime?
+  endDate   DateTime?
+  status    CompetitionStatus @default(DRAFT)
+
+  /// Seed for the deterministic question draw, so a paper can be regenerated.
+  drawSeed Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  criteria        Criterion[]
+  penaltyRules    PenaltyRule[]
+  categories      Category[]
+  candidates      Candidate[]
+  questions       Question[]
+  judgingSessions JudgingSession[]
+  accessSessions  JudgeAccess[]
+
+  @@map("competitions")
+}
+
+enum CriterionKind {
+  /// The hifz criterion. Its score is derived by the penalty engine.
+  PENALTY
+  /// A criterion the judge rates directly on 0..maxPoints (تجويد, أداء).
+  DIRECT
+}
+
+/// One scoring dimension of a competition. Exactly one PENALTY criterion is
+/// expected; its `maxPoints` is the hifz base (60 in the 2026 workbook).
+model Criterion {
+  id            String        @id @default(cuid())
+  competitionId String
+  key           String
+  labelAr       String
+  descriptionAr String?
+  kind          CriterionKind
+  maxPoints     Float
+  sortOrder     Int           @default(0)
+
+  competition Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  scores      CriterionScore[]
+
+  @@unique([competitionId, key])
+  @@map("criteria")
+}
+
+enum PenaltyKind {
+  /// تلعثم — stumbles but recovers unaided.
+  TALATHUM
+  /// تنبيه — the judge prompts with a hint.
+  TANBIH
+  /// فتح — the judge supplies the word outright.
+  FATH
+}
+
+/// Deduction weights for the hifz penalty engine, per competition.
+/// A cancelled question (ملغى) has no rule: it always costs one question's value.
+model PenaltyRule {
+  id            String      @id @default(cuid())
+  competitionId String
+  kind          PenaltyKind
+  labelAr       String
+  weight        Float
+
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, kind])
+  @@map("penalty_rules")
+}
+
+/// A participation class, identified by how many أحزاب the candidate memorised
+/// (2, 3, 4, 5, 10, 15, … 60 in the 2026 workbook).
+model Category {
+  id            String @id @default(cuid())
+  competitionId String
+  hizbCount     Int
+  labelAr       String
+
+  /// How many questions a candidate in this class is asked. Drives the value of
+  /// a cancelled question: hifzBase / questionCount.
+  questionCount Int @default(4)
+  /// Size of one drawn passage: `amountValue` × `amountUnit`.
+  amountUnit    String @default("wajh")
+  amountValue   Int    @default(1)
+
+  competition Competition     @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  candidates  Candidate[]
+  questions   Question[]
+  judges      CategoryJudge[]
+
+  @@unique([competitionId, hizbCount])
+  @@map("categories")
+}
+
+/// Which judges sit on which class.
+model CategoryJudge {
+  categoryId String
+  judgeId    String
+  assignedAt DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  judge    Judge    @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, judgeId])
+  @@map("category_judges")
+}
+
+enum ScopeKind {
+  FULL
+  SURA
+  RANGE
+}
+
+model Candidate {
+  id            String  @id @default(cuid())
+  competitionId String
+  categoryId    String
+  /// The `المعرّف` column of the workbook — the branch's own numbering.
+  externalId    Int?
+  fullName      String
+  gender        Gender
+  birthDate     DateTime?
+  /// المدرّس(ة) المحفّظ(ة)
+  teacherName   String?
+
+  /// The raw `السّور المشارك بها` text, kept verbatim for audit.
+  scopeRaw       String
+  scopeKind      ScopeKind
+  /// The parsed range, in QuranVerse.id. Inclusive on both ends.
+  scopeStartVerseId Int
+  scopeEndVerseId   Int
+  /// True when the candidate wrote the range end-first (memorises backwards).
+  scopeReversed     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  competition     Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  questions       Question[]
+  judgingSessions JudgingSession[]
+
+  @@unique([competitionId, externalId])
+  @@index([competitionId, categoryId])
+  @@index([fullName])
+  @@map("candidates")
+}
+
+// ─────────────────────────── Questions ───────────────────────────
+
+enum QuestionSource {
+  AUTO
+  MANUAL
+  IMPORTED
+}
+
+/// A drawn passage: start reciting at `startVerse`, for `amountValue` ×
+/// `amountUnit`. `endVerseId` is resolved and cached when the question is made.
+///
+/// A question belongs to a candidate when drawn for them individually, or to a
+/// category when it is a shared bank question.
+model Question {
+  id            String         @id @default(cuid())
+  competitionId String
+  categoryId    String?
+  candidateId   String?
+  source        QuestionSource @default(AUTO)
+  sortOrder     Int            @default(0)
+
+  startVerseId Int
+  endVerseId   Int
+  amountUnit   String
+  amountValue  Int
+
+  createdAt DateTime @default(now())
+
+  competition Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  category    Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  candidate   Candidate?       @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  startVerse  QuranVerse       @relation(fields: [startVerseId], references: [id], onDelete: Restrict)
+  results     QuestionResult[]
+
+  @@index([competitionId])
+  @@index([candidateId])
+  @@index([categoryId])
+  @@map("questions")
+}
+
+// ─────────────────────────── Judging ───────────────────────────
+
+enum JudgingStatus {
+  PENDING
+  IN_PROGRESS
+  DRAFT_SAVED
+  SUBMITTED
+}
+
+/// One judge's evaluation of one candidate.
+model JudgingSession {
+  id            String        @id @default(cuid())
+  competitionId String
+  candidateId   String
+  judgeId       String
+  status        JudgingStatus @default(PENDING)
+
+  /// Snapshot of the scoring config at submission, so a later change to the
+  /// competition's weights cannot silently rewrite a recorded result.
+  hifzBase          Float?
+  pointsPerQuestion Float?
+  hifzScore         Float?
+  directTotal       Float?
+  totalScore        Float?
+
+  notes       String?
+  startedAt   DateTime?
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  competition     Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  candidate       Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  judge           Judge            @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  questionResults QuestionResult[]
+  criterionScores CriterionScore[]
+
+  @@unique([candidateId, judgeId])
+  @@index([competitionId, status])
+  @@index([judgeId])
+  @@map("judging_sessions")
+}
+
+/// The judge's tally for one question. These four counters are the only inputs
+/// to the hifz score.
+model QuestionResult {
+  id               String  @id @default(cuid())
+  judgingSessionId String
+  questionId       String
+
+  talathumCount Int     @default(0)
+  tanbihCount   Int     @default(0)
+  fathCount     Int     @default(0)
+  /// ملغى — the question is written off; costs one full question value.
+  cancelled     Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+
+  judgingSession JudgingSession @relation(fields: [judgingSessionId], references: [id], onDelete: Cascade)
+  question       Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([judgingSessionId, questionId])
+  @@map("question_results")
+}
+
+/// The judge's rating for a DIRECT criterion (تجويد, أداء).
+model CriterionScore {
+  id               String @id @default(cuid())
+  judgingSessionId String
+  criterionId      String
+  value            Float
+
+  judgingSession JudgingSession @relation(fields: [judgingSessionId], references: [id], onDelete: Cascade)
+  criterion      Criterion      @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([judgingSessionId, criterionId])
+  @@map("criterion_scores")
+}

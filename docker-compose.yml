@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tahkeem-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tahkeem
+      POSTGRES_PASSWORD: tahkeem
+      POSTGRES_DB: tahkeem
+      # The Quran text and all candidate names are Arabic.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    # Host port 5433: a local Postgres commonly already owns 5432.
+    ports:
+      - "5433:5432"
+    volumes:
+      - tahkeem-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tahkeem -d tahkeem"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tahkeem-pgdata:
