@@ -1,8 +1,37 @@
 import axios, { AxiosError, type AxiosInstance } from "axios";
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 
-export const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/api";
+/** Port the API listens on. Keep in sync with `apps/api/.env`. */
+const API_PORT = 3001;
+
+/**
+ * Where the API lives.
+ *
+ * `localhost` on a physical device means the *phone*, not the laptop, so a
+ * hardcoded default can never work over Wi-Fi. Expo already tells us the machine
+ * that served the bundle (`hostUri` is e.g. "172.20.10.2:8081"), so reuse its
+ * host and swap the port. An explicit `EXPO_PUBLIC_API_URL` always wins, which
+ * is what a staging or production build sets.
+ */
+function resolveApiUrl(): string {
+  const explicit = process.env.EXPO_PUBLIC_API_URL;
+  if (explicit) return explicit;
+
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    // Older/other manifest shapes still carry the debugger host.
+    (Constants.expoGoConfig as { debuggerHost?: string } | undefined)
+      ?.debuggerHost;
+
+  const host = hostUri?.split(":")[0];
+  if (host) return `http://${host}:${API_PORT}/api`;
+
+  // Simulator/emulator, where localhost really is the host machine.
+  return `http://localhost:${API_PORT}/api`;
+}
+
+export const API_URL = resolveApiUrl();
 
 const TOKEN_KEY = "tahkeem.accessToken";
 

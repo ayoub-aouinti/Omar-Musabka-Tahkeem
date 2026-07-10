@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   type OnModuleInit,
 } from "@nestjs/common";
 import type { QuranVerse } from "@prisma/client";
@@ -20,6 +21,8 @@ const RUBS_PER_HIZB = 4;
 /** Every page of this mushaf is typeset on 15 lines. */
 const LINES_PER_PAGE = 15;
 
+const SURAH_COUNT = 114;
+
 @Injectable()
 export class QuranService implements OnModuleInit {
   /** 6214 verses — small enough to keep resident and index once. */
@@ -30,18 +33,42 @@ export class QuranService implements OnModuleInit {
   private pageVerses = new Map<string, number[]>();
   private hizbVerses = new Map<number, number[]>();
 
+  private readonly logger = new Logger(QuranService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
     await this.load();
+    if (this.verses.length) {
+      this.logger.log(`Mushaf indexed: ${this.verses.length} verses, ${SURAH_COUNT} surahs`);
+    }
   }
 
   async load(): Promise<void> {
-    this.verses = await this.prisma.quranVerse.findMany({
+    const verses = await this.prisma.quranVerse.findMany({
       orderBy: { id: "asc" },
     });
-    if (!this.verses.length) return; // Not seeded yet; endpoints will 400.
 
+    // Not seeded yet — endpoints 400 until `load()` is called again.
+    if (!verses.length) {
+      this.verses = [];
+      return;
+    }
+
+    // Booting while the seed is mid-flight would index a fraction of the mushaf.
+    // A half-built index does not fail: it silently reports "unknown surah" for
+    // whatever has not landed yet. Refuse it, and keep answering 400 instead.
+    const surahCount = new Set(verses.map((v) => v.suraNumber)).size;
+    if (surahCount !== SURAH_COUNT) {
+      this.verses = [];
+      this.logger.error(
+        `Quran table holds ${verses.length} verses across ${surahCount} surahs, expected ${SURAH_COUNT}. ` +
+          "Refusing to serve a partial mushaf — re-run the seed, then restart.",
+      );
+      return;
+    }
+
+    this.verses = verses;
     this.byId = new Map(this.verses.map((v) => [v.id, v]));
     this.index = buildQuranIndex(this.verses);
 

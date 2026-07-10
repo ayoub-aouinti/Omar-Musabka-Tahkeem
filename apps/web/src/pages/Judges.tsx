@@ -53,11 +53,13 @@ function formatExpiry(iso: string): string {
 function PrintSheet({
   judgeName,
   qrDataUrl,
+  accessCode,
   displayCode,
   expiresAt,
 }: {
   judgeName: string;
   qrDataUrl: string;
+  accessCode: string;
   displayCode: string;
   expiresAt: string;
 }) {
@@ -95,7 +97,7 @@ function PrintSheet({
         />
 
         <p style={{ fontSize: "10pt", margin: "4mm 0 1mm", color: "#5f5e5e" }}>
-          رمز الدخول
+          أو أدخل رمز التحقّق يدويًا
         </p>
         <p
           dir="ltr"
@@ -105,16 +107,20 @@ function PrintSheet({
             letterSpacing: "0.15em",
             color: "#006b33",
             margin: 0,
+            fontFamily: "'Work Sans', monospace",
           }}
         >
-          {displayCode}
+          {accessCode}
         </p>
 
         <p style={{ fontSize: "10pt", marginTop: "3mm" }}>
           صالح حتى {formatExpiry(expiresAt)}
         </p>
-        <p style={{ fontSize: "9pt", marginTop: "6mm", color: "#5f5e5e" }}>
-          يُستخدم هذا الرمز مرّة واحدة فقط. لا تشاركه مع أحد.
+        <p style={{ fontSize: "9pt", marginTop: "2mm", color: "#5f5e5e" }}>
+          مرجع البطاقة: {displayCode}
+        </p>
+        <p style={{ fontSize: "9pt", marginTop: "5mm", color: "#5f5e5e" }}>
+          يُستعمل مرّة واحدة فقط — بالمسح أو بالرمز، لا بكليهما. لا تشاركه مع أحد.
         </p>
       </div>
     </div>,
@@ -319,23 +325,30 @@ function AccessModal({
               {judge?.fullName}
             </p>
             <img src={result.qrDataUrl} alt="رمز الدخول" className="h-56 w-56" />
+
             <p className="font-label-md text-sm text-on-surface-variant">
-              رمز الدخول
+              رمز التحقّق
             </p>
             <p
               dir="ltr"
               className="font-headline-lg text-3xl tracking-widest text-primary"
             >
-              {result.displayCode}
+              {result.accessCode}
             </p>
             <p className="font-body-md text-xs text-on-surface-variant">
-              صالح حتى {formatExpiry(result.expiresAt)}
+              يُدخله المحكّم يدويًا إذا تعذّر مسح الرمز
             </p>
+
+            <div className="mt-2 w-full border-t border-outline-variant pt-2 text-center">
+              <p className="font-body-md text-xs text-on-surface-variant">
+                صالح حتى {formatExpiry(result.expiresAt)} · مرجع {result.displayCode}
+              </p>
+            </div>
           </div>
 
           <Banner tone="info">
-            هذا الرمز يُعرَض مرّة واحدة فقط ويُستخدم لمرّة واحدة. اطبعه أو سلّمه
-            للمحكّم الآن.
+            رمز التحقّق ورمز QR يُعرَضان مرّة واحدة فقط، ويُستعمل أحدهما لا كلاهما.
+            اطبع البطاقة أو سلّمها للمحكّم الآن.
           </Banner>
 
           <div className="flex justify-end gap-2">
@@ -350,6 +363,7 @@ function AccessModal({
           <PrintSheet
             judgeName={judge?.fullName ?? ""}
             qrDataUrl={result.qrDataUrl}
+            accessCode={result.accessCode}
             displayCode={result.displayCode}
             expiresAt={result.expiresAt}
           />

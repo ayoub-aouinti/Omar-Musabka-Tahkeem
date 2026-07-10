@@ -13,6 +13,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import {
+  ACCESS_CODE_LENGTH,
+  isAccessCodeShaped,
+  normalizeAccessCode,
+} from "@tahkeem/shared";
 import { apiErrorMessage } from "../src/lib/api";
 import { useAuth } from "../src/lib/auth";
 import { colors, MIN_TOUCH, radius, spacing } from "../src/theme";
@@ -20,21 +25,28 @@ import { colors, MIN_TOUCH, radius, spacing } from "../src/theme";
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { loginWithPassword } = useAuth();
+  const { loginWithCode } = useAuth();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
+  // Judges hold a printed card; there are no passwords on this app.
+  const canSubmit = isAccessCodeShaped(code) && !submitting;
+
+  const onChangeCode = (next: string) => {
+    setError(null);
+    // Re-group as ABCD-EFGH while typing, and stop at the code's length.
+    const clean = normalizeAccessCode(next).slice(0, ACCESS_CODE_LENGTH);
+    setCode(clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean);
+  };
 
   const onSubmit = async () => {
     if (!canSubmit) return;
     setError(null);
     setSubmitting(true);
     try {
-      await loginWithPassword(email.trim(), password);
+      await loginWithCode(code);
       // The auth gate redirects once the user is set.
     } catch (e) {
       setError(apiErrorMessage(e));
@@ -64,31 +76,44 @@ export default function LoginScreen() {
         <Text style={styles.title}>المحكّم القرآني</Text>
         <Text style={styles.subtitle}>منصّة تحكيم المسابقات القرآنية</Text>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>البريد الإلكتروني</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            textAlign="right"
-            placeholder="name@example.com"
-            placeholderTextColor={colors.outline}
-          />
+        <Pressable
+          onPress={() => router.push("/scan")}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            styles.scanButton,
+            pressed && styles.primaryButtonPressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>مسح بطاقة تعريف المحكّم</Text>
+        </Pressable>
 
-          <Text style={styles.label}>كلمة المرور</Text>
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>أو أدخل رمز التحقّق</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <View style={styles.form}>
+          <Text style={styles.label}>رمز التحقّق</Text>
           <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            textAlign="right"
-            placeholder="••••••••"
+            style={styles.codeInput}
+            value={code}
+            onChangeText={onChangeCode}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            spellCheck={false}
+            // The code is ASCII: force the Latin keyboard even under an RTL UI.
+            textAlign="center"
+            placeholder="ABCD-EFGH"
             placeholderTextColor={colors.outline}
             onSubmitEditing={onSubmit}
             returnKeyType="go"
+            maxLength={ACCESS_CODE_LENGTH + 1}
+            accessibilityLabel="رمز التحقّق المكوّن من ثمانية أحرف"
           />
+          <Text style={styles.hint}>
+            الرمز مطبوع على بطاقة المحكّم تحت رمز QR
+          </Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -96,34 +121,18 @@ export default function LoginScreen() {
             onPress={onSubmit}
             disabled={!canSubmit}
             style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && canSubmit && styles.primaryButtonPressed,
+              styles.outlinedButton,
+              pressed && canSubmit && styles.outlinedButtonPressed,
               !canSubmit && styles.buttonDisabled,
             ]}
           >
             {submitting ? (
-              <ActivityIndicator color={colors.onPrimary} />
+              <ActivityIndicator color={colors.primary} />
             ) : (
-              <Text style={styles.primaryButtonText}>تسجيل الدخول</Text>
+              <Text style={styles.outlinedButtonText}>دخول</Text>
             )}
           </Pressable>
         </View>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>أو وصول سريع</Text>
-          <View style={styles.divider} />
-        </View>
-
-        <Pressable
-          onPress={() => router.push("/scan")}
-          style={({ pressed }) => [
-            styles.outlinedButton,
-            pressed && styles.outlinedButtonPressed,
-          ]}
-        >
-          <Text style={styles.outlinedButtonText}>مسح بطاقة تعريف المحكّم</Text>
-        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -167,16 +176,25 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: spacing.sm,
   },
-  input: {
-    minHeight: MIN_TOUCH,
+  scanButton: { marginTop: spacing.md },
+  codeInput: {
+    minHeight: MIN_TOUCH + 8,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
-    fontSize: 16,
+    fontSize: 26,
+    letterSpacing: 4,
+    fontWeight: "700",
     color: colors.onSurface,
     backgroundColor: colors.surfaceContainerLowest,
-    writingDirection: "rtl",
+    // The code is Latin/ASCII; keep it LTR inside the RTL layout.
+    writingDirection: "ltr",
+  },
+  hint: {
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+    textAlign: "center",
   },
   error: {
     color: colors.error,

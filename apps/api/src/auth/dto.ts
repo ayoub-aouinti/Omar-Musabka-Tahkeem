@@ -15,3 +15,10 @@ export class QrLoginDto {
   @IsNotEmpty({ message: "رمز الدخول مفقود" })
   token!: string;
 }
+
+/** The typed `رمز التحقّق`, in any casing, with or without the dash. */
+export class CodeLoginDto {
+  @IsString()
+  @IsNotEmpty({ message: "أدخل رمز التحقّق" })
+  code!: string;
+}

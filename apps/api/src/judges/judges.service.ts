@@ -1,6 +1,11 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import type { Gender } from "@prisma/client";
+import {
+  ACCESS_CODE_ALPHABET,
+  ACCESS_CODE_LENGTH,
+  formatAccessCode,
+} from "@tahkeem/shared";
 import * as QRCode from "qrcode";
 import { hashToken } from "../auth/auth.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -11,8 +16,19 @@ export interface IssuedAccess {
   expiresAt: Date;
   /** Plaintext token — returned exactly once, at issue time. */
   token: string;
+  /** The typed `رمز التحقّق`, grouped as ABCD-EFGH. Returned exactly once. */
+  accessCode: string;
   /** PNG data URI of the QR the judge scans. */
   qrDataUrl: string;
+}
+
+/** Uniform over the alphabet: `randomInt` avoids the modulo bias of `% len`. */
+function generateAccessCode(): string {
+  let code = "";
+  for (let i = 0; i < ACCESS_CODE_LENGTH; i++) {
+    code += ACCESS_CODE_ALPHABET[randomInt(ACCESS_CODE_ALPHABET.length)];
+  }
+  return code;
 }
 
 @Injectable()
@@ -101,6 +117,9 @@ export class JudgesService {
 
     // 256 bits of entropy: unguessable, and only its hash is persisted.
     const token = randomBytes(32).toString("base64url");
+    // Short enough to type off a printed card; safe only because the credential
+    // is single-use, short-lived, and guesses are throttled in AuthService.
+    const accessCode = generateAccessCode();
     const displayCode = `QX-${randomInt(1000, 9999)}`;
     const expiresAt = new Date(Date.now() + hours * 3600 * 1000);
 
@@ -109,6 +128,7 @@ export class JudgesService {
         judgeId,
         competitionId,
         tokenHash: hashToken(token),
+        codeHash: hashToken(accessCode),
         displayCode,
         expiresAt,
       },
@@ -121,7 +141,14 @@ export class JudgesService {
       color: { dark: "#006b33", light: "#ffffff" },
     });
 
-    return { id: access.id, displayCode, expiresAt, token, qrDataUrl };
+    return {
+      id: access.id,
+      displayCode,
+      expiresAt,
+      token,
+      accessCode: formatAccessCode(accessCode),
+      qrDataUrl,
+    };
   }
 
   async revokeAccess(accessId: string) {

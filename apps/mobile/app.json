@@ -4,6 +4,7 @@
     "slug": "tahkeem",
     "scheme": "tahkeem",
     "version": "1.0.0",
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,

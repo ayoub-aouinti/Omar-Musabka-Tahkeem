@@ -13,7 +13,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
-  loginWithPassword: (email: string, password: string) => Promise<void>;
+  loginWithCode: (code: string) => Promise<AuthUser>;
   loginWithQr: (token: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
@@ -74,28 +74,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const loginWithPassword = useCallback(
-    async (email: string, password: string) => {
-      const { data } = await api.post<AuthResponse>("/auth/login", {
-        email,
-        password,
-      });
-      await tokenStore.set(data.accessToken);
-      setToken(data.accessToken);
-      setUser(data.user);
-    },
-    [],
-  );
-
-  const loginWithQr = useCallback(async (qrToken: string) => {
-    const { data } = await api.post<AuthResponse>("/auth/qr", {
-      token: qrToken,
-    });
+  const applySession = useCallback(async (data: AuthResponse) => {
     await tokenStore.set(data.accessToken);
     setToken(data.accessToken);
     setUser(data.user);
     return data.user;
   }, []);
+
+  /**
+   * Judges authenticate with the single-use credential on their printed card —
+   * scanned, or typed when the camera will not read it. There are no passwords
+   * on this app; the password endpoint exists for admins on the web dashboard.
+   */
+  const loginWithCode = useCallback(
+    async (code: string) => {
+      const { data } = await api.post<AuthResponse>("/auth/code", { code });
+      return applySession(data);
+    },
+    [applySession],
+  );
+
+  const loginWithQr = useCallback(
+    async (qrToken: string) => {
+      const { data } = await api.post<AuthResponse>("/auth/qr", {
+        token: qrToken,
+      });
+      return applySession(data);
+    },
+    [applySession],
+  );
 
   const logout = useCallback(async () => {
     await clearSession();
@@ -106,11 +113,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       token,
       isLoading,
-      loginWithPassword,
+      loginWithCode,
       loginWithQr,
       logout,
     }),
-    [user, token, isLoading, loginWithPassword, loginWithQr, logout],
+    [user, token, isLoading, loginWithCode, loginWithQr, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

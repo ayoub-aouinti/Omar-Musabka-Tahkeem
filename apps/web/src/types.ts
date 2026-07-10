@@ -274,9 +274,13 @@ export type JudgeUpdate = Partial<JudgeCreate>;
 
 export interface AccessGrant {
   id: string;
+  /** Non-secret support reference, e.g. QX-9902. */
   displayCode: string;
   expiresAt: string;
+  /** The QR payload. Secret; returned once. */
   token: string;
+  /** The typed `رمز التحقّق`, e.g. ABCD-EFGH. Secret; returned once. */
+  accessCode: string;
   qrDataUrl: string;
 }
 

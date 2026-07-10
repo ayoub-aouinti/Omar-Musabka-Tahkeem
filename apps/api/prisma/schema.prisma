@@ -59,16 +59,20 @@ model Judge {
   @@map("judges")
 }
 
-/// A short-lived credential handed to a judge as a QR code. The QR encodes the
-/// plaintext token; only its SHA-256 hash is stored, so a database leak cannot
-/// be replayed. Single-use: `consumedAt` is stamped on first exchange.
+/// A short-lived credential handed to a judge, carrying two equivalent secrets:
+/// the long token inside the QR code, and a short `رمز التحقّق` the judge can
+/// type when the camera will not cooperate. Only SHA-256 hashes are stored, so a
+/// database leak cannot be replayed. Single-use: redeeming *either* secret
+/// stamps `consumedAt` and retires the whole credential.
 model JudgeAccess {
   id            String    @id @default(cuid())
   judgeId       String
   competitionId String
-  /// SHA-256 of the token embedded in the QR code.
+  /// SHA-256 of the high-entropy token embedded in the QR code.
   tokenHash     String    @unique
-  /// Human-readable code shown under the QR (e.g. QX-9902) for support calls.
+  /// SHA-256 of the typed verification code (8 chars, shown once).
+  codeHash      String    @unique
+  /// Non-secret reference (e.g. QX-9902) so support can identify a card.
   displayCode   String
   expiresAt     DateTime
   consumedAt    DateTime?

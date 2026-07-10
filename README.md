@@ -49,7 +49,20 @@ Questions are then drawn *inside* that range. Draws are seeded (`competition.dra
 
 ## The judge's credential
 
-An admin issues a judge a temporary account for a competition. The QR encodes a 256-bit token; only its SHA-256 hash is stored. It is **single-use** — the first scan stamps `consumedAt`, so a photographed card cannot be replayed — and issuing a new card revokes the judge's previous live one. The JWT it mints never outlives the card.
+Judges have no password. An admin issues a temporary card for a competition, carrying two equivalent secrets:
+
+| | What it is | Entropy |
+|---|---|---|
+| **QR code** | a 256-bit token | unguessable |
+| **رمز التحقّق** | 8 characters, `ABCD-EFGH` | ~10¹² |
+
+Only SHA-256 hashes are stored, so a database leak cannot be replayed. Redeeming **either** secret retires the whole card — `consumedAt` is stamped under a conditional update, so two phones racing the same card cannot both win.
+
+The typed code is short enough to be worth guessing, so it leans on three defences together: the card is single-use, it expires within hours, and the API caps attempts at 6 per client per 15 minutes. Lengthening the expiry without revisiting that trade-off would be a mistake.
+
+The code's alphabet omits `0 O 1 I L`. A character outside the alphabet is **rejected**, never remapped: an `O` could be a misread `Q` or `D`, and guessing would burn the single use on the wrong code.
+
+Issuing a new card revokes the judge's previous live one, and the JWT never outlives the card that minted it.
 
 ---
 
@@ -80,7 +93,7 @@ Seeded administrator: `admin@omar-quran.tn` / `Admin@2026` (change `SEED_ADMIN_*
 
 > **Ports.** Postgres is published on **5433** and the API listens on **3001**, because 5432 and 3000 are frequently already taken on a developer machine. Change them in `docker-compose.yml` and `apps/api/.env` if you prefer.
 
-> **Mobile on a real phone.** The app targets **Expo SDK 54** (RN 0.81, React 19, new architecture), which is what the current Expo Go installs. `EXPO_PUBLIC_API_URL` must be the machine's LAN address (`http://192.168.x.x:3001/api`), not `localhost`, and that address must be in the API's `CORS_ORIGINS`.
+> **Mobile on a real phone.** The app targets **Expo SDK 54** (RN 0.81, React 19, new architecture), which is what the current Expo Go installs. You do **not** need to configure the API URL: the app reads the host that served the Expo bundle and talks to `http://<that-host>:3001/api`. (`localhost` on a phone means the phone.) Set `EXPO_PUBLIC_API_URL` only to point a build at a fixed server. Make sure the API is running and your firewall lets the phone reach port 3001.
 
 > **React majors differ on purpose.** `apps/mobile` is on React 19 (required by SDK 54); `apps/web` stays on React 18. Both `@types/react` majors therefore live in the pnpm store, and a dependency's own `.d.ts` resolves from inside the virtual store — so `apps/web/tsconfig.json` pins `paths` for `react`/`react-dom`. Without it, react-router's types bind to the React 19 typings and every `<Route>` becomes a type error. Web's `@types/react` is pinned exactly (18.3.12): 18.3.2x changed `ReactElement<P = unknown>` and breaks react-router 6.
 

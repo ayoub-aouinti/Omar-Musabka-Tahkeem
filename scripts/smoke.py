@@ -129,9 +129,13 @@ def main() -> None:
         lines = (
             (int(str(end["page"]).split("-")[0]) - 1) * 15 + end["lineEnd"]
         ) - ((int(str(start["page"]).split("-")[0]) - 1) * 15 + start["lineStart"]) + 1
+        # A wajh is 15 lines. The passage starts on the drawn verse's first line
+        # and ends on its last verse's *last* line, so it can overshoot by the
+        # length of that closing verse; and it is cut short where the candidate's
+        # scope ends. The bound catches collapse-to-one-verse, not exact length.
         check(
             f"passage {question['sortOrder'] + 1} is a real wajh",
-            2 <= lines <= 17,
+            2 <= lines <= 24,
             f"{lines} lines, {len(verses)} verses",
         )
         # Every drawn passage must lie inside the candidate's declared scope.
@@ -142,11 +146,17 @@ def main() -> None:
         )
 
     print("\njudge credential")
-    judge = call("/judges", token=token)[0]
+    judges = call("/judges", token=token)
+    judge = judges[0]
     access = call(
         f"/judges/{judge['id']}/access", "POST", {"competitionId": cid, "hours": 4}, token
     )
     check("QR issued", access["qrDataUrl"].startswith("data:image/png"), access["displayCode"])
+    check(
+        "verification code issued",
+        len(access["accessCode"]) == 9 and access["accessCode"][4] == "-",
+        access["accessCode"],
+    )
 
     judge_auth = call("/auth/qr", "POST", {"token": access["token"]})
     jtoken = judge_auth["accessToken"]
@@ -156,7 +166,46 @@ def main() -> None:
         "the same QR cannot be replayed",
         lambda: call("/auth/qr", "POST", {"token": access["token"]}),
     )
+    expect_error(
+        "redeeming the QR also burns its verification code",
+        lambda: call("/auth/code", "POST", {"code": access["accessCode"]}),
+    )
     expect_error("judge cannot reach admin routes", lambda: call("/judges", token=jtoken))
+
+    print("\nverification code login")
+    second = judges[1]
+    card = call(
+        f"/judges/{second['id']}/access", "POST", {"competitionId": cid, "hours": 4}, token
+    )
+    code = card["accessCode"]
+
+    # The judge types it however they like: lower case, no dash, stray spaces.
+    typed = f"  {code.replace('-', '').lower()} "
+    coded_auth = call("/auth/code", "POST", {"code": typed})
+    check("judge logs in by typed code", coded_auth["user"]["role"] == "JUDGE")
+    check("and is bound to the competition", coded_auth["user"]["competitionId"] == cid)
+
+    expect_error(
+        "the code is single-use",
+        lambda: call("/auth/code", "POST", {"code": code}),
+    )
+    expect_error(
+        "and its QR token is burned with it",
+        lambda: call("/auth/qr", "POST", {"token": card["token"]}),
+    )
+
+    print("\nbrute-force throttling")
+    # MAX_CODE_ATTEMPTS = 6 within 15 minutes, counted per client.
+    throttled = False
+    for attempt in range(1, 12):
+        try:
+            call("/auth/code", "POST", {"code": "ZZZZ-ZZZZ"})
+        except ApiError as error:
+            if error.status == 429:
+                check("guessing is throttled", True, f"after {attempt} attempts")
+                throttled = True
+                break
+    check("throttle engaged before 12 guesses", throttled)
 
     print("\njudging")
     opened = call(f"/judging/sessions/{kid}/open", "POST", None, jtoken)
