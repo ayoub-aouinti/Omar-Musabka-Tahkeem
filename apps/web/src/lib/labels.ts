@@ -1,4 +1,4 @@
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import type {
   AmountUnit,
   CompetitionStatus,
@@ -51,7 +51,7 @@ export const AMOUNT_UNITS: AmountUnit[] = [
 
 /** Format a "quantity + unit" the way the workbook reads it, in Arabic digits. */
 export function formatAmount(value: number, unit: AmountUnit): string {
-  return `${toArabicDigits(value)} ${AMOUNT_UNIT_LABELS[unit]}`;
+  return `${toDisplayDigits(value)} ${AMOUNT_UNIT_LABELS[unit]}`;
 }
 
 /** Localised date (Gregorian) for display; returns a dash for missing dates. */
@@ -59,7 +59,7 @@ export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return toArabicDigits(
+  return toDisplayDigits(
     new Intl.DateTimeFormat("ar-TN-u-ca-gregory", {
       year: "numeric",
       month: "long",

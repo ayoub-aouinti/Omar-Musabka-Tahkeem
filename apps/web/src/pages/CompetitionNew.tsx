@@ -1,6 +1,6 @@
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { api, apiErrorMessage } from "../lib/api";
 import { useCreateCompetition } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
@@ -38,7 +38,7 @@ function ReportView({ report }: { report: ImportReport }) {
             مشاركون مستوردون
           </p>
           <p className="font-headline-md text-xl text-primary">
-            {toArabicDigits(report.candidates.imported)}
+            {toDisplayDigits(report.candidates.imported)}
           </p>
         </Card>
         <Card className="p-3">
@@ -46,7 +46,7 @@ function ReportView({ report }: { report: ImportReport }) {
             مشاركون متجاهَلون
           </p>
           <p className="font-headline-md text-xl text-on-surface">
-            {toArabicDigits(report.candidates.skipped)}
+            {toDisplayDigits(report.candidates.skipped)}
           </p>
         </Card>
         <Card className="p-3">
@@ -54,7 +54,7 @@ function ReportView({ report }: { report: ImportReport }) {
             محكّمون مستوردون
           </p>
           <p className="font-headline-md text-xl text-on-surface">
-            {toArabicDigits(report.judges.imported)}
+            {toDisplayDigits(report.judges.imported)}
           </p>
         </Card>
         <Card className="p-3">
@@ -62,7 +62,7 @@ function ReportView({ report }: { report: ImportReport }) {
             أصناف مُنشأة
           </p>
           <p className="font-headline-md text-xl text-on-surface">
-            {toArabicDigits(report.categoriesCreated.length)}
+            {toDisplayDigits(report.categoriesCreated.length)}
           </p>
         </Card>
       </div>
@@ -71,7 +71,7 @@ function ReportView({ report }: { report: ImportReport }) {
         <p className="font-body-md text-sm text-on-surface-variant">
           أحزاب الأصناف المُنشأة:{" "}
           {report.categoriesCreated
-            .map((n) => toArabicDigits(n))
+            .map((n) => toDisplayDigits(n))
             .join("، ")}
         </p>
       ) : null}
@@ -79,7 +79,7 @@ function ReportView({ report }: { report: ImportReport }) {
       {report.errors.length ? (
         <div className="overflow-hidden rounded-lg border border-error-container">
           <div className="bg-error-container px-3 py-2 font-label-md text-xs text-on-error-container">
-            أخطاء ({toArabicDigits(report.errors.length)})
+            أخطاء ({toDisplayDigits(report.errors.length)})
           </div>
           <table className="w-full text-start text-sm">
             <thead>
@@ -93,7 +93,7 @@ function ReportView({ report }: { report: ImportReport }) {
               {report.errors.map((e, i) => (
                 <tr key={i} className="border-t border-outline-variant/60">
                   <td className="px-3 py-2 text-on-surface-variant">
-                    {toArabicDigits(e.row)}
+                    {toDisplayDigits(e.row)}
                   </td>
                   <td className="px-3 py-2 text-on-surface">{e.name}</td>
                   <td className="px-3 py-2 text-error">{e.reason}</td>
@@ -326,7 +326,7 @@ export function CompetitionNewPage() {
                 : "bg-primary-container/10 text-primary",
             ].join(" ")}
           >
-            {created ? <Icon name="check" className="text-[18px]" /> : "١"}
+            {created ? <Icon name="check" className="text-[18px]" /> : "1"}
           </div>
           <h2 className="font-headline-md text-lg text-on-surface">
             بيانات المسابقة

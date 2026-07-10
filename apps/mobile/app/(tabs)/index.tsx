@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { CandidateCard } from "../../src/components/CandidateCard";
 import { Chip } from "../../src/components/Chip";
 import { apiErrorMessage } from "../../src/lib/api";
@@ -59,7 +59,7 @@ export default function CandidatesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>المتسابقون</Text>
         {data ? (
-          <Text style={styles.count}>{toArabicDigits(filtered.length)}</Text>
+          <Text style={styles.count}>{toDisplayDigits(filtered.length)}</Text>
         ) : null}
       </View>
 
@@ -75,7 +75,6 @@ export default function CandidatesScreen() {
       {categories.length > 0 ? (
         <FlatList
           horizontal
-          inverted
           showsHorizontalScrollIndicator={false}
           data={[{ id: "__all__", labelAr: "الكل" }, ...categories]}
           keyExtractor={(c) => c.id}

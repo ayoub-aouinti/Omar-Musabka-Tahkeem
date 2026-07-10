@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { colors, radius, spacing } from "../theme";
 import { formatDate, formatScore } from "../lib/format";
 import { statusInfo } from "../lib/status";
@@ -52,7 +52,7 @@ export function CandidateCard({
         <Chip label={candidate.category.labelAr} />
         {candidate.externalId != null ? (
           <Text style={styles.meta}>
-            المعرّف: #{toArabicDigits(candidate.externalId)}
+            المعرّف: #{toDisplayDigits(candidate.externalId)}
           </Text>
         ) : null}
       </View>

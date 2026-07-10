@@ -78,6 +78,8 @@ Seeded administrator: `admin@omar-quran.tn` / `Admin@2026` (change `SEED_ADMIN_*
 
 > **Ports.** Postgres is published on **5433** and the API listens on **3001**, because 5432 and 3000 are frequently already taken on a developer machine. Change them in `docker-compose.yml` and `apps/api/.env` if you prefer.
 
+> **Mobile on a real phone.** `EXPO_PUBLIC_API_URL` must be the machine's LAN address (`http://192.168.x.x:3001/api`), not `localhost`, and that address must be in the API's `CORS_ORIGINS`.
+
 ### What the seed loads
 
 ```
@@ -99,3 +101,17 @@ python scripts/smoke.py    # end-to-end against a running API + DB
 ```
 
 The smoke test walks the real flow: admin login → issue a QR → judge scans it → open a session → submit tallies → confirm the score is `60 − (15 + 3 + 0.75 + 0.75) = 40.5`, that the QR cannot be replayed, that a submitted result is immutable, and that the scoring config is frozen once a result exists.
+
+Per-workspace checks:
+
+```bash
+pnpm --filter @tahkeem/api  exec tsc --noEmit
+pnpm --filter @tahkeem/web  build
+pnpm --filter @tahkeem/mobile exec tsc --noEmit
+```
+
+## Known gaps
+
+- **Judge panels are not gendered.** The seed seats all 28 judges on all 15 categories. The branch's judge list is split `رجال`/`نساء`, but categories are not gendered, so the separation has to be applied by editing seats in the dashboard. Enforcing it in the schema would mean gendering the category or the seat.
+- **A password-login judge with seats in several competitions** must pass `?competitionId=`; the mobile app has no competition picker. With one competition (the normal case) it is inferred.
+- `ثمن حزب` and `ربع حزب` passage sizes are derived by dividing each hizb's line span evenly, because the Qaloun dataset carries no thumn/rub markers. `وجه`, `صفحة` and `آيات` are exact.

@@ -24,6 +24,34 @@ export class JudgingService {
     private readonly questions: QuestionsService,
   ) {}
 
+  /**
+   * The competition a judge is working on. A QR token names it; a password
+   * login does not, so fall back to the single competition they are seated on.
+   * Only ambiguity is an error.
+   */
+  async resolveCompetitionId(
+    judgeId: string,
+    requested?: string,
+  ): Promise<string> {
+    if (requested) return requested;
+
+    const seats = await this.prisma.categoryJudge.findMany({
+      where: { judgeId },
+      select: { category: { select: { competitionId: true } } },
+    });
+    const competitionIds = [
+      ...new Set(seats.map((seat) => seat.category.competitionId)),
+    ];
+
+    if (competitionIds.length === 1) return competitionIds[0];
+    if (competitionIds.length === 0) {
+      throw new ForbiddenException("لست معيّنًا للتحكيم في أي مسابقة");
+    }
+    throw new BadRequestException(
+      "أنت معيّن في أكثر من مسابقة، حدّد المسابقة (competitionId)",
+    );
+  }
+
   /** Candidates this judge may evaluate: those in the categories they sit on. */
   async myCandidates(judgeId: string, competitionId: string) {
     const seats = await this.prisma.categoryJudge.findMany({

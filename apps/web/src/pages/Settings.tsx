@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_PENALTY_WEIGHTS,
   round2,
-  toArabicDigits,
+  toDisplayDigits,
 } from "@tahkeem/shared";
 import { useCompetition, useUpdateScoring } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
@@ -240,13 +240,13 @@ export function SettingsPage() {
 
             <div className="mt-4 rounded-lg bg-surface-container-low p-4 font-arabic-body text-sm leading-relaxed text-on-surface-variant">
               عدد الحفظ = الأساس − (ملغى×نقاط السؤال + فتح×
-              {toArabicDigits(penalties.find((p) => p.kind === "FATH")?.weight ?? 1.5)}{" "}
+              {toDisplayDigits(penalties.find((p) => p.kind === "FATH")?.weight ?? 1.5)}{" "}
               + تنبيه×
-              {toArabicDigits(
+              {toDisplayDigits(
                 penalties.find((p) => p.kind === "TANBIH")?.weight ?? 0.75,
               )}{" "}
               + تلعثم×
-              {toArabicDigits(
+              {toDisplayDigits(
                 penalties.find((p) => p.kind === "TALATHUM")?.weight ?? 0.25,
               )}
               )، حيث نقاط السؤال = الأساس ÷ عدد الأسئلة.

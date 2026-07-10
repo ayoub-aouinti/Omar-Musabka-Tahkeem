@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { Banner, Button, Icon, Input } from "../components/ui";
+import { Banner, Button, Input } from "../components/ui";
 
 export function LoginPage() {
   const { user, isLoading, login } = useAuth();
@@ -37,9 +37,11 @@ export function LoginPage() {
     <div className="dotted-bg flex min-h-screen items-center justify-center bg-gradient-to-bl from-primary/10 via-background to-tertiary-fixed/30 p-6">
       <div className="w-full max-w-md rounded-full border border-outline-variant bg-surface-container-lowest/80 p-8 shadow-sm backdrop-blur-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-on-primary">
-            <Icon name="menu_book" className="text-[36px]" />
-          </div>
+          <img
+            src="/logo-omar.png"
+            alt="شعار جمعية عمر بن الخطاب"
+            className="h-24 w-24 rounded-full border border-outline-variant bg-white object-cover shadow-sm"
+          />
           <h1 className="font-headline-lg text-2xl text-on-surface">
             منصّة تحكيم المسابقات القرآنية
           </h1>

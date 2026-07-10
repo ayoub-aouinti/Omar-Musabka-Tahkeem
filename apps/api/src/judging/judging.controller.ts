@@ -22,16 +22,17 @@ export class JudgingController {
 
   @Get("my-candidates")
   @ApiOperation({ summary: "المتسابقون المسندون إلى المحكّم الحالي" })
-  myCandidates(
+  async myCandidates(
     @CurrentUser() user: AuthUser,
     @Query("competitionId") competitionIdQuery?: string,
   ) {
     const judgeId = requireJudge(user);
-    // A QR-issued token is already bound to one competition.
-    const competitionId = user.competitionId ?? competitionIdQuery;
-    if (!competitionId) {
-      throw new BadRequestException("competitionId مطلوب");
-    }
+    // A QR-issued token is already bound to one competition; a password login is
+    // not, so let the service infer it when there is only one possibility.
+    const competitionId = await this.judging.resolveCompetitionId(
+      judgeId,
+      user.competitionId ?? competitionIdQuery,
+    );
     return this.judging.myCandidates(judgeId, competitionId);
   }
 

@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { normalizeArabic, surahKey } from "../arabic";
+import {
+  normalizeArabic,
+  surahKey,
+  toArabicDigits,
+  toDisplayDigits,
+} from "../arabic";
 import {
   buildQuranIndex,
   parseScope,
@@ -42,6 +47,30 @@ describe("normalizeArabic", () => {
   it("keeps آل عمران intact rather than eating the ال", () => {
     expect(normalizeArabic("آل عِمران")).toBe("ال عمران");
     expect(surahKey("آل عمران")).toBe(surahKey("آل عِمران "));
+  });
+});
+
+describe("toDisplayDigits — the interface renders Western numerals", () => {
+  it("passes Western digits through untouched", () => {
+    expect(toDisplayDigits(2026)).toBe("2026");
+    expect(toDisplayDigits("40.5 / 60")).toBe("40.5 / 60");
+  });
+
+  it("folds Arabic-Indic digits to Western", () => {
+    expect(toDisplayDigits("٤٠٥")).toBe("405");
+    expect(toDisplayDigits(toArabicDigits(3957))).toBe("3957");
+  });
+
+  it("leaves surrounding Arabic text alone", () => {
+    expect(toDisplayDigits("الجزء ٣٠")).toBe("الجزء 30");
+    expect(toDisplayDigits("٤ ساعات")).toBe("4 ساعات");
+  });
+
+  it("normalises what Intl emits for an ar-* locale", () => {
+    const formatted = new Intl.DateTimeFormat("ar-TN-u-ca-gregory", {
+      year: "numeric",
+    }).format(new Date(Date.UTC(2026, 0, 1)));
+    expect(toDisplayDigits(formatted)).toMatch(/2026/);
   });
 });
 

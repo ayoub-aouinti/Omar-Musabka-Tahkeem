@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import {
   useCompetition,
   useGenerateCategoryQuestions,
@@ -21,7 +21,6 @@ import {
   Card,
   Chip,
   ErrorState,
-  Icon,
   Input,
   Select,
   Skeleton,
@@ -96,7 +95,7 @@ function CategoryRow({
               className="w-20"
             />
           ) : (
-            toArabicDigits(category.hizbCount)
+            toDisplayDigits(category.hizbCount)
           )}
         </td>
         <td className="px-4 py-3 font-body-md text-sm font-medium text-on-surface">
@@ -127,7 +126,7 @@ function CategoryRow({
               className="w-20"
             />
           ) : (
-            toArabicDigits(category.questionCount)
+            toDisplayDigits(category.questionCount)
           )}
         </td>
         <td className="px-4 py-3 font-body-md text-sm text-on-surface">
@@ -166,7 +165,7 @@ function CategoryRow({
           )}
         </td>
         <td className="px-4 py-3 font-body-md text-sm text-on-surface">
-          {toArabicDigits(category._count?.candidates ?? 0)}
+          {toDisplayDigits(category._count?.candidates ?? 0)}
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-2">
@@ -228,9 +227,9 @@ function CategoryRow({
                   onDismiss={() => setGenResult(null)}
                 >
                   تم توليد الأسئلة لـ{" "}
-                  {toArabicDigits(genResult.generated)} مشارك.
+                  {toDisplayDigits(genResult.generated)} مشارك.
                   {genResult.failed.length
-                    ? ` تعذّر التوليد لـ ${toArabicDigits(
+                    ? ` تعذّر التوليد لـ ${toDisplayDigits(
                         genResult.failed.length,
                       )} مشارك.`
                     : ""}
@@ -335,7 +334,7 @@ export function CompetitionDetailPage() {
             المشاركون
           </p>
           <p className="mt-1 font-headline-lg text-2xl text-on-surface">
-            {toArabicDigits(data._count.candidates)}
+            {toDisplayDigits(data._count.candidates)}
           </p>
         </Card>
         <Card className="p-4">
@@ -343,7 +342,7 @@ export function CompetitionDetailPage() {
             الأصناف
           </p>
           <p className="mt-1 font-headline-lg text-2xl text-on-surface">
-            {toArabicDigits(data.categories.length)}
+            {toDisplayDigits(data.categories.length)}
           </p>
         </Card>
         <Card className="p-4">
@@ -351,7 +350,7 @@ export function CompetitionDetailPage() {
             المعايير
           </p>
           <p className="mt-1 font-headline-lg text-2xl text-on-surface">
-            {toArabicDigits(data.criteria.length)}
+            {toDisplayDigits(data.criteria.length)}
           </p>
         </Card>
         <Card className="p-4">
@@ -359,7 +358,7 @@ export function CompetitionDetailPage() {
             قواعد الخصم
           </p>
           <p className="mt-1 font-headline-lg text-2xl text-on-surface">
-            {toArabicDigits(data.penaltyRules.length)}
+            {toDisplayDigits(data.penaltyRules.length)}
           </p>
         </Card>
       </div>

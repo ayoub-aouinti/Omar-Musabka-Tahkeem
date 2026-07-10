@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import {
   useCandidates,
   useCompetition,
@@ -41,7 +41,7 @@ function judgingChip(candidate: CandidateListItem) {
   const label =
     submitted === total
       ? JUDGING_STATUS_LABELS.SUBMITTED
-      : `${toArabicDigits(submitted)}/${toArabicDigits(total)} معتمد`;
+      : `${toDisplayDigits(submitted)}/${toDisplayDigits(total)} معتمد`;
   return (
     <Chip
       className={
@@ -99,7 +99,7 @@ export function CandidatesPage() {
         <div>
           <h1 className="font-headline-lg text-3xl text-on-surface">المشاركون</h1>
           <p className="mt-1 font-body-md text-sm text-on-surface-variant">
-            {toArabicDigits(total)} مشارك في {competition.data?.name ?? "المسابقة"}
+            {toDisplayDigits(total)} مشارك في {competition.data?.name ?? "المسابقة"}
           </p>
         </div>
         <Link to="/candidates/new">
@@ -237,7 +237,7 @@ export function CandidatesPage() {
         {total > PAGE_SIZE ? (
           <div className="flex items-center justify-between border-t border-outline-variant px-4 py-3">
             <span className="font-body-md text-sm text-on-surface-variant">
-              صفحة {toArabicDigits(page + 1)} من {toArabicDigits(pageCount)}
+              صفحة {toDisplayDigits(page + 1)} من {toDisplayDigits(pageCount)}
             </span>
             <div className="flex gap-2">
               <Button

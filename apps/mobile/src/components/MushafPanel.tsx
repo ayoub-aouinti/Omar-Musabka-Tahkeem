@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { colors, fonts, radius, spacing } from "../theme";
 import type { QuestionPassage } from "../types";
 
@@ -10,13 +10,13 @@ import type { QuestionPassage } from "../types";
  */
 export function MushafPanel({ passage }: { passage: QuestionPassage }) {
   const first = passage.verses[0];
-  const pagesLabel = passage.pages.map((p) => toArabicDigits(p)).join(" · ");
+  const pagesLabel = passage.pages.map((p) => toDisplayDigits(p)).join(" · ");
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.headerText}>
-          {first ? `الجزء ${toArabicDigits(first.jozz)}` : ""}
+          {first ? `الجزء ${toDisplayDigits(first.jozz)}` : ""}
         </Text>
         <Text style={styles.headerDot}>·</Text>
         <Text style={styles.headerText}>
@@ -41,7 +41,7 @@ export function MushafPanel({ passage }: { passage: QuestionPassage }) {
               <Text style={styles.verseText}>{verse.ayaText} </Text>
               <View style={styles.ayaBadge}>
                 <Text style={styles.ayaNumber}>
-                  {toArabicDigits(verse.ayaNumber)}
+                  {toDisplayDigits(verse.ayaNumber)}
                 </Text>
               </View>
             </View>

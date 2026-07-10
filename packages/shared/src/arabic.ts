@@ -39,7 +39,20 @@ export function toWesternDigits(input: string): string {
   return input.replace(/[٠-٩]/g, (d) => String(ARABIC_INDIC_DIGITS.indexOf(d)));
 }
 
-/** Render an ASCII number with Arabic-Indic digits, for display only. */
+/** Render an ASCII number with Arabic-Indic digits (٠-٩). */
 export function toArabicDigits(value: number | string): string {
   return String(value).replace(/[0-9]/g, (d) => ARABIC_INDIC_DIGITS[Number(d)]);
 }
+
+/**
+ * The numeral form the interface renders. The branch reads scores, identifiers
+ * and counts in Western digits, so every number the UI prints goes through here
+ * rather than being interpolated raw — switching the whole product to Arabic-
+ * Indic later is then a one-line change.
+ */
+export function toDisplayDigits(value: number | string): string {
+  return toWesternDigits(String(value));
+}
+
+/** BCP-47 extension forcing `Intl` to emit Western digits under an `ar-*` locale. */
+export const DISPLAY_NUMBERING = "-u-nu-latn";

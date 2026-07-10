@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { useCandidate, useGenerateCandidateQuestions } from "../hooks";
 import { apiErrorMessage } from "../lib/api";
 import { GENDER_LABELS, formatAmount } from "../lib/labels";
@@ -26,7 +26,7 @@ export function CandidateDrawer({
     setFeedback(null);
     try {
       const questions = await generate.mutateAsync({ candidateId, regenerate });
-      setFeedback(`تم توليد ${toArabicDigits(questions.length)} سؤالًا.`);
+      setFeedback(`تم توليد ${toDisplayDigits(questions.length)} سؤالًا.`);
     } catch (err) {
       setFeedback(apiErrorMessage(err));
     }
@@ -79,7 +79,7 @@ export function CandidateDrawer({
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h4 className="font-label-md text-sm font-medium text-on-surface-variant">
-                الأسئلة المولّدة ({toArabicDigits(data.questions.length)})
+                الأسئلة المولّدة ({toDisplayDigits(data.questions.length)})
               </h4>
               <Button
                 icon="auto_awesome"
@@ -111,9 +111,9 @@ export function CandidateDrawer({
                   >
                     <span className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-container/10 text-xs text-primary">
-                        {toArabicDigits(i + 1)}
+                        {toDisplayDigits(i + 1)}
                       </span>
-                      {q.label ?? `آية ${toArabicDigits(q.startVerseId)}`}
+                      {q.label ?? `آية ${toDisplayDigits(q.startVerseId)}`}
                     </span>
                     <span className="font-body-md text-xs text-on-surface-variant">
                       {formatAmount(q.amountValue, q.amountUnit)}

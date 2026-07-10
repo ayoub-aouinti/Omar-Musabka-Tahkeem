@@ -1,4 +1,4 @@
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { Chip, Icon } from "./ui";
 import type { ScopeEndpoint, ScopeKind } from "../types";
 
@@ -11,10 +11,10 @@ export interface ScopeLike {
 }
 
 function endpoint(point: ScopeEndpoint): string {
-  return `${point.surah}:${toArabicDigits(point.ayah)}`;
+  return `${point.surah}:${toDisplayDigits(point.ayah)}`;
 }
 
-/** «من البقرة:١ إلى الصافات:١٨٢ — ٣٩٥٧ آية» plus a reversed badge. */
+/** «من البقرة:1 إلى الصافات:182 — 3957 آية» plus a reversed badge. */
 export function ScopeSummary({ scope }: { scope: ScopeLike }) {
   return (
     <div className="flex flex-col gap-2">
@@ -24,13 +24,13 @@ export function ScopeSummary({ scope }: { scope: ScopeLike }) {
         <span>إلى</span>
         <span className="font-medium text-primary">{endpoint(scope.end)}</span>
         <span className="text-on-surface-variant">
-          — {toArabicDigits(scope.verseCount)} آية
+          — {toDisplayDigits(scope.verseCount)} آية
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-2 font-body-md text-xs text-on-surface-variant">
         <span>
-          الصفحات {toArabicDigits(scope.start.page)}–
-          {toArabicDigits(scope.end.page)}
+          الصفحات {toDisplayDigits(scope.start.page)}–
+          {toDisplayDigits(scope.end.page)}
         </span>
         {scope.reversed ? (
           <Chip className="bg-error-container text-on-error-container">

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ES2020",
+    "outDir": "dist/esm",
+    // The .d.ts emitted by the CJS build is the one package.json points at.
+    "declaration": false
+  }
+}

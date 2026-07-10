@@ -1,12 +1,17 @@
-import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
-// The dashboard runs on the default Vite port (5173) and talks to the API on
-// 3001. In dev we proxy `/api` so cookies/CORS stay simple, but the axios client
-// still reads `VITE_API_URL` so production builds hit the real host.
+// `@tahkeem/shared` ships a real ESM build (`exports.import`), so Vite reads its
+// named exports directly — no CJS→ESM interop, and no pre-bundled copy that can
+// go stale against a rebuilt `dist/`. Excluding the linked workspace package
+// from the dep cache means `pnpm shared:build` is picked up on the next request
+// instead of after a manual `vite --force`.
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+  },
+  optimizeDeps: {
+    exclude: ["@tahkeem/shared"],
   },
 });

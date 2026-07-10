@@ -7,7 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { colors, MIN_TOUCH, radius } from "../theme";
 
 interface StepperProps {
@@ -20,7 +20,7 @@ interface StepperProps {
   style?: StyleProp<ViewStyle>;
 }
 
-/** A −/+ counter with ≥48dp round targets. Value shown in Arabic-Indic digits. */
+/** A −/+ counter with ≥48dp round targets. */
 export function Stepper({
   value,
   onChange,
@@ -44,7 +44,7 @@ export function Stepper({
         accessibilityLabel="إنقاص"
       />
       <Text style={styles.value} accessibilityLabel={`القيمة ${value}`}>
-        {toArabicDigits(trimZeros(value))}
+        {toDisplayDigits(trimZeros(value))}
       </Text>
       <StepButton
         label="+"

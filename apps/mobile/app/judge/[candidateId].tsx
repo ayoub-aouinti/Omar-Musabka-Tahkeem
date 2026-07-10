@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { MushafPanel } from "../../src/components/MushafPanel";
 import { ScoringSheet } from "../../src/components/ScoringSheet";
 import { apiErrorMessage } from "../../src/lib/api";
@@ -70,7 +70,7 @@ function JudgeSession({
   const passage = questions[current];
 
   const questionLabel = useMemo(
-    () => `السؤال ${toArabicDigits(current + 1)} من ${toArabicDigits(total)}`,
+    () => `السؤال ${toDisplayDigits(current + 1)} من ${toDisplayDigits(total)}`,
     [current, total],
   );
 
@@ -187,7 +187,7 @@ function JudgeSession({
             style={[styles.dot, i === current && styles.dotActive]}
           >
             <Text style={[styles.dotText, i === current && styles.dotTextActive]}>
-              {toArabicDigits(i + 1)}
+              {toDisplayDigits(i + 1)}
             </Text>
           </Pressable>
         ))}
@@ -341,7 +341,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    flexDirection: "row-reverse",
   },
   dot: {
     minWidth: 36,

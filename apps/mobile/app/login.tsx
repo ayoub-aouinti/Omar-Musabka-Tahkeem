@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -54,9 +55,12 @@ export default function LoginScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.logo}>
-          <Text style={styles.logoGlyph}>۩</Text>
-        </View>
+        <Image
+          source={require("../assets/logo-omar.png")}
+          style={styles.logo}
+          accessibilityLabel="شعار جمعية عمر بن الخطاب"
+          resizeMode="cover"
+        />
         <Text style={styles.title}>المحكّم القرآني</Text>
         <Text style={styles.subtitle}>منصّة تحكيم المسابقات القرآنية</Text>
 
@@ -137,12 +141,11 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
     marginBottom: spacing.lg,
   },
-  logoGlyph: { fontSize: 52, color: colors.onPrimary },
   title: {
     fontSize: 28,
     fontWeight: "800",

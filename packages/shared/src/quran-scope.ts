@@ -15,7 +15,7 @@
  * write their scope end-first. The span is the same either way, so the endpoints
  * are ordered by mushaf position.
  */
-import { surahKey, toWesternDigits } from "./arabic";
+import { surahKey, toWesternDigits } from "./arabic.js";
 
 export interface SurahMeta {
   number: number;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { useCompetition, useResults } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
 import { apiErrorMessage } from "../lib/api";
@@ -119,7 +119,7 @@ export function ResultsPage() {
                           />
                         ) : null}
                         <span style={index < 3 ? { color: MEDALS[index] } : undefined}>
-                          {toArabicDigits(index + 1)}
+                          {toDisplayDigits(index + 1)}
                         </span>
                       </span>
                     </td>
@@ -130,7 +130,7 @@ export function ResultsPage() {
                       {categoryLabel.get(row.candidate.categoryId) ?? "—"}
                     </td>
                     <td className="px-4 py-3 font-body-md text-sm text-on-surface">
-                      {toArabicDigits(row.judgeCount)}
+                      {toDisplayDigits(row.judgeCount)}
                     </td>
                     <td className="px-4 py-3">
                       <span

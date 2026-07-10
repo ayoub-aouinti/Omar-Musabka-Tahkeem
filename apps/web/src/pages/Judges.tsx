@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import {
   useCompetitions,
   useCreateJudge,
@@ -29,9 +29,9 @@ import {
 import type { AccessGrant, Gender, Judge } from "../types";
 
 const DURATIONS = [
-  { hours: 4, label: "٤ ساعات" },
-  { hours: 8, label: "٨ ساعات" },
-  { hours: 24, label: "٢٤ ساعة" },
+  { hours: 4, label: "4 ساعات" },
+  { hours: 8, label: "8 ساعات" },
+  { hours: 24, label: "24 ساعة" },
 ];
 
 function sessionState(judge: Judge): {
@@ -66,7 +66,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
     <Card className="p-4">
       <p className="font-label-md text-xs text-on-surface-variant">{label}</p>
       <p className="mt-1 font-headline-lg text-2xl text-on-surface">
-        {toArabicDigits(value)}
+        {toDisplayDigits(value)}
       </p>
     </Card>
   );
@@ -246,10 +246,12 @@ function AccessModal({
             </p>
             <p className="font-body-md text-xs text-on-surface-variant">
               صالح حتى{" "}
-              {new Intl.DateTimeFormat("ar-TN-u-ca-gregory", {
-                dateStyle: "medium",
-                timeStyle: "short",
-              }).format(new Date(result.expiresAt))}
+              {toDisplayDigits(
+                new Intl.DateTimeFormat("ar-TN-u-ca-gregory", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(result.expiresAt)),
+              )}
             </p>
           </div>
 
@@ -457,7 +459,7 @@ export function JudgesPage() {
                         {judge.residence ?? "—"}
                       </td>
                       <td className="px-4 py-3 font-body-md text-sm text-on-surface">
-                        {toArabicDigits(judge._count.judgingSessions)}
+                        {toDisplayDigits(judge._count.judgingSessions)}
                       </td>
                       <td className="px-4 py-3">
                         <Chip className={state.className}>{state.label}</Chip>

@@ -14,7 +14,7 @@ import {
   BottomSheetTextInput,
   type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet";
-import { toArabicDigits, type PenaltyWeights, type QuestionTally } from "@tahkeem/shared";
+import { toDisplayDigits, type PenaltyWeights, type QuestionTally } from "@tahkeem/shared";
 import { colors, MIN_TOUCH, radius, spacing } from "../theme";
 import { formatDeduction, formatScore } from "../lib/format";
 import { Stepper } from "./Stepper";
@@ -113,7 +113,7 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
                   <View style={styles.counterLabelCol}>
                     <Text style={styles.counterLabel}>{row.label}</Text>
                     <Text style={styles.counterDeduction}>
-                      ×{toArabicDigits(count)} = {formatDeduction(deduction)}
+                      ×{toDisplayDigits(count)} = {formatDeduction(deduction)}
                     </Text>
                   </View>
                   <Stepper
@@ -154,7 +154,7 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
                   <View style={styles.counterLabelCol}>
                     <Text style={styles.counterLabel}>{criterion.labelAr}</Text>
                     <Text style={styles.counterDeduction}>
-                      {formatScore(value)} / {toArabicDigits(criterion.maxPoints)}
+                      {formatScore(value)} / {toDisplayDigits(criterion.maxPoints)}
                     </Text>
                   </View>
                   <Stepper
@@ -191,7 +191,7 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
             <View style={styles.breakdownDivider} />
             <BreakdownLine
               label="عدد الحفظ"
-              value={`${formatScore(hifz.score)} / ${toArabicDigits(scoring.hifzBase)}`}
+              value={`${formatScore(hifz.score)} / ${toDisplayDigits(scoring.hifzBase)}`}
               strong
             />
             <BreakdownLine

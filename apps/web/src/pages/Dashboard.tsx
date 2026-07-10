@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { toArabicDigits } from "@tahkeem/shared";
+import { toDisplayDigits } from "@tahkeem/shared";
 import { useCompetitions, useJudges } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
 import { apiErrorMessage } from "../lib/api";
@@ -82,10 +82,10 @@ function CompetitionsTable({ items }: { items: CompetitionSummary[] }) {
                 </Chip>
               </td>
               <td className="px-4 py-3 font-body-md text-sm text-on-surface">
-                {toArabicDigits(c._count.candidates)}
+                {toDisplayDigits(c._count.candidates)}
               </td>
               <td className="px-4 py-3 font-body-md text-sm text-on-surface">
-                {toArabicDigits(c._count.categories)}
+                {toDisplayDigits(c._count.categories)}
               </td>
               <td className="px-4 py-3 font-body-md text-sm text-on-surface-variant">
                 {formatDate(c.startDate)}
@@ -127,19 +127,19 @@ export function DashboardPage() {
         <StatCard
           icon="groups"
           label="إجمالي المشاركين"
-          value={toArabicDigits(totalCandidates)}
+          value={toDisplayDigits(totalCandidates)}
           loading={competitions.isLoading}
         />
         <StatCard
           icon="emoji_events"
           label="المسابقات النشطة"
-          value={toArabicDigits(activeCompetitions)}
+          value={toDisplayDigits(activeCompetitions)}
           loading={competitions.isLoading}
         />
         <StatCard
           icon="gavel"
           label="المحكّمون المعتمدون"
-          value={toArabicDigits(judges.data?.length ?? 0)}
+          value={toDisplayDigits(judges.data?.length ?? 0)}
           loading={judges.isLoading}
         />
       </div>

@@ -56,7 +56,11 @@ export function Layout() {
     <div className="flex min-h-screen bg-background">
       <aside className="sticky top-0 flex h-screen w-64 flex-col border-s border-outline-variant bg-primary text-on-primary">
         <div className="flex items-center gap-3 px-6 py-6">
-          <Icon name="menu_book" className="text-[32px]" />
+          <img
+            src="/logo-omar.png"
+            alt="شعار جمعية عمر بن الخطاب"
+            className="h-11 w-11 shrink-0 rounded-full bg-white object-cover"
+          />
           <div>
             <p className="font-headline-md text-lg leading-tight">لوحة التحكيم</p>
             <p className="font-body-md text-xs text-on-primary-container/70">

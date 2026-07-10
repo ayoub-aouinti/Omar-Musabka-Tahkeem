@@ -35,8 +35,7 @@ export const qk = {
   competition: (id: string) => ["competitions", id] as const,
   scoring: (id: string) => ["competitions", id, "scoring"] as const,
   categories: (id: string) => ["competitions", id, "categories"] as const,
-  candidates: (params: Record<string, unknown>) =>
-    ["candidates", params] as const,
+  candidates: (params: CandidateFilters) => ["candidates", params] as const,
   candidate: (id: string) => ["candidates", id] as const,
   surahs: ["quran", "surahs"] as const,
   scope: (raw: string) => ["quran", "scope", raw] as const,
@@ -180,7 +179,7 @@ export interface CandidateFilters {
 
 export function useCandidates(filters: CandidateFilters, enabled = true) {
   return useQuery({
-    queryKey: qk.candidates(filters as Record<string, unknown>),
+    queryKey: qk.candidates(filters),
     enabled,
     queryFn: async () => {
       const params: Record<string, string | number> = {
