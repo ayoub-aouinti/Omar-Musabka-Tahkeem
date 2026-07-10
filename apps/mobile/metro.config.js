@@ -9,7 +9,9 @@ const monorepoRoot = path.resolve(projectRoot, "../..");
 const config = getDefaultConfig(projectRoot);
 
 // 1. Watch the whole monorepo so Metro picks up changes in `@tahkeem/shared`.
-config.watchFolders = [monorepoRoot];
+//    Append rather than assign: `expo/metro-config` seeds watchFolders with
+//    entries the SDK relies on, and dropping them breaks asset resolution.
+config.watchFolders = [...(config.watchFolders ?? []), monorepoRoot];
 
 // 2. Resolve modules from the app first, then fall back to the root store.
 config.resolver.nodeModulesPaths = [

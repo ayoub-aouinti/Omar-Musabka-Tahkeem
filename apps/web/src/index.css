@@ -53,28 +53,35 @@
   }
 }
 
-/* Print: show only the QR access card (marked .print-area). */
+/*
+ * Print: only the judge's access card.
+ *
+ * The card is portalled to <body> rather than printed in place. Printing it
+ * inside the modal meant hiding the app with `visibility: hidden` and pulling
+ * the card back with `position: absolute`, which resolved against the modal's
+ * `overflow: auto; max-height: 90vh` container inside a `position: fixed`
+ * overlay — Chrome clipped it away and produced a blank page. A direct child of
+ * <body> has no such ancestors, so `display` alone is enough.
+ */
+.print-only {
+  display: none;
+}
+
 @media print {
-  body * {
-    visibility: hidden;
-  }
-
-  .print-area,
-  .print-area * {
-    visibility: visible;
-  }
-
-  .print-area {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    display: flex !important;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .no-print {
+  body > *:not(.print-only) {
     display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  html,
+  body {
+    background: #fff;
+  }
+
+  @page {
+    margin: 14mm;
   }
 }

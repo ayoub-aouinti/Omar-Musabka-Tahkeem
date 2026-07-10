@@ -18,7 +18,19 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+
+    // The mobile app is on React 19, this one on React 18, so pnpm's store holds
+    // both `@types/react` majors. A dependency's own `.d.ts` (react-router's)
+    // resolves from inside the virtual store and would otherwise pick up the 19
+    // typings, whose `ReactElement<P = unknown>` makes every <Route> a type
+    // error. Pin type resolution to this project's copy. TS-only: Vite does not
+    // read `paths`, so runtime resolution is untouched.
+    "baseUrl": ".",
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react-dom": ["./node_modules/@types/react-dom"]
+    }
   },
   "include": ["src"]
 }

@@ -80,7 +80,9 @@ Seeded administrator: `admin@omar-quran.tn` / `Admin@2026` (change `SEED_ADMIN_*
 
 > **Ports.** Postgres is published on **5433** and the API listens on **3001**, because 5432 and 3000 are frequently already taken on a developer machine. Change them in `docker-compose.yml` and `apps/api/.env` if you prefer.
 
-> **Mobile on a real phone.** `EXPO_PUBLIC_API_URL` must be the machine's LAN address (`http://192.168.x.x:3001/api`), not `localhost`, and that address must be in the API's `CORS_ORIGINS`.
+> **Mobile on a real phone.** The app targets **Expo SDK 54** (RN 0.81, React 19, new architecture), which is what the current Expo Go installs. `EXPO_PUBLIC_API_URL` must be the machine's LAN address (`http://192.168.x.x:3001/api`), not `localhost`, and that address must be in the API's `CORS_ORIGINS`.
+
+> **React majors differ on purpose.** `apps/mobile` is on React 19 (required by SDK 54); `apps/web` stays on React 18. Both `@types/react` majors therefore live in the pnpm store, and a dependency's own `.d.ts` resolves from inside the virtual store — so `apps/web/tsconfig.json` pins `paths` for `react`/`react-dom`. Without it, react-router's types bind to the React 19 typings and every `<Route>` becomes a type error. Web's `@types/react` is pinned exactly (18.3.12): 18.3.2x changed `ReactElement<P = unknown>` and breaks react-router 6.
 
 ### What the seed loads
 

@@ -2,7 +2,8 @@ module.exports = function (api) {
   api.cache(true);
   return {
     presets: ["babel-preset-expo"],
-    // Reanimated's plugin powers @gorhom/bottom-sheet and MUST be listed last.
-    plugins: ["react-native-reanimated/plugin"],
+    // Reanimated 4 moved its Babel plugin into react-native-worklets. It powers
+    // @gorhom/bottom-sheet and MUST stay last in the plugin list.
+    plugins: ["react-native-worklets/plugin"],
   };
 };

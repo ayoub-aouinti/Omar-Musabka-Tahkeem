@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { toDisplayDigits } from "@tahkeem/shared";
 import {
   useCompetitions,
@@ -33,6 +34,93 @@ const DURATIONS = [
   { hours: 8, label: "8 ساعات" },
   { hours: 24, label: "24 ساعة" },
 ];
+
+function formatExpiry(iso: string): string {
+  return toDisplayDigits(
+    new Intl.DateTimeFormat("ar-TN-u-ca-gregory", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso)),
+  );
+}
+
+/**
+ * The card the admin hands to the judge, rendered as a direct child of <body>
+ * so that `@media print` can hide the rest of the app with plain `display`.
+ * Printing it from inside the modal put it under a clipped, scrollable, fixed
+ * ancestor and Chrome emitted a blank page.
+ */
+function PrintSheet({
+  judgeName,
+  qrDataUrl,
+  displayCode,
+  expiresAt,
+}: {
+  judgeName: string;
+  qrDataUrl: string;
+  displayCode: string;
+  expiresAt: string;
+}) {
+  return createPortal(
+    <div className="print-only">
+      <div
+        dir="rtl"
+        style={{
+          textAlign: "center",
+          fontFamily: "Amiri, serif",
+          color: "#1b1c1c",
+        }}
+      >
+        <img
+          src="/logo-omar.png"
+          alt=""
+          style={{ width: "22mm", height: "22mm", borderRadius: "50%" }}
+        />
+        <p style={{ fontSize: "12pt", margin: "2mm 0 0" }}>
+          جمعية عمر بن الخطاب — دار شعبان الفهري
+        </p>
+        <p style={{ fontSize: "10pt", margin: "1mm 0 6mm", color: "#5f5e5e" }}>
+          بطاقة دخول المحكّم إلى منصّة التحكيم
+        </p>
+
+        <p style={{ fontSize: "18pt", fontWeight: 700, margin: "0 0 4mm" }}>
+          {judgeName}
+        </p>
+
+        {/* A data-URI PNG: prints without "background graphics" being enabled. */}
+        <img
+          src={qrDataUrl}
+          alt={`رمز دخول ${judgeName}`}
+          style={{ width: "70mm", height: "70mm" }}
+        />
+
+        <p style={{ fontSize: "10pt", margin: "4mm 0 1mm", color: "#5f5e5e" }}>
+          رمز الدخول
+        </p>
+        <p
+          dir="ltr"
+          style={{
+            fontSize: "26pt",
+            fontWeight: 700,
+            letterSpacing: "0.15em",
+            color: "#006b33",
+            margin: 0,
+          }}
+        >
+          {displayCode}
+        </p>
+
+        <p style={{ fontSize: "10pt", marginTop: "3mm" }}>
+          صالح حتى {formatExpiry(expiresAt)}
+        </p>
+        <p style={{ fontSize: "9pt", marginTop: "6mm", color: "#5f5e5e" }}>
+          يُستخدم هذا الرمز مرّة واحدة فقط. لا تشاركه مع أحد.
+        </p>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 function sessionState(judge: Judge): {
   label: string;
@@ -226,15 +314,11 @@ function AccessModal({
     >
       {result ? (
         <div className="flex flex-col gap-4">
-          <div className="print-area flex flex-col items-center gap-3 rounded-xl border border-outline-variant p-6">
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-outline-variant p-6">
             <p className="font-headline-md text-lg text-on-surface">
               {judge?.fullName}
             </p>
-            <img
-              src={result.qrDataUrl}
-              alt="رمز الدخول"
-              className="h-56 w-56"
-            />
+            <img src={result.qrDataUrl} alt="رمز الدخول" className="h-56 w-56" />
             <p className="font-label-md text-sm text-on-surface-variant">
               رمز الدخول
             </p>
@@ -245,13 +329,7 @@ function AccessModal({
               {result.displayCode}
             </p>
             <p className="font-body-md text-xs text-on-surface-variant">
-              صالح حتى{" "}
-              {toDisplayDigits(
-                new Intl.DateTimeFormat("ar-TN-u-ca-gregory", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }).format(new Date(result.expiresAt)),
-              )}
+              صالح حتى {formatExpiry(result.expiresAt)}
             </p>
           </div>
 
@@ -260,7 +338,7 @@ function AccessModal({
             للمحكّم الآن.
           </Banner>
 
-          <div className="no-print flex justify-end gap-2">
+          <div className="flex justify-end gap-2">
             <Button variant="outline" icon="print" onClick={() => window.print()}>
               طباعة
             </Button>
@@ -268,6 +346,13 @@ function AccessModal({
               تم
             </Button>
           </div>
+
+          <PrintSheet
+            judgeName={judge?.fullName ?? ""}
+            qrDataUrl={result.qrDataUrl}
+            displayCode={result.displayCode}
+            expiresAt={result.expiresAt}
+          />
         </div>
       ) : (
         <div className="flex flex-col gap-4">
