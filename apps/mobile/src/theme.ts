@@ -25,6 +25,8 @@ export const colors = {
   errorContainer: "#ffdad6",
   primaryFixed: "#8afaa6",
   mushafPaper: "#FFFDF9",
+  /** Soft grey wash marking the question span on the mushaf page. */
+  mushafHighlight: "#e6e2da",
 } as const;
 
 export const spacing = {

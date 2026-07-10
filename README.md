@@ -41,7 +41,7 @@ Finalising is refused until *every* question is confirmed and *every* general cr
 
 ### The mushaf page
 
-The judging screen shows the **full mushaf page(s)** the question sits on — the whole page as printed, on ruled lines in the Qaloun font — with the question **highlighted from its first verse to its last**. Where a surah opens on the page, a decorated band with the surah name (and the basmala, except At-Tawba) precedes it. Each `ayaText` already ends with the mushaf's ornate ayah-number glyph, so no number is drawn twice.
+The judging screen shows the **full mushaf page(s)** the question sits on — the whole page as printed, on faint ruled lines in the Qaloun font — with the question **highlighted from its first verse to its last** in a soft grey wash. Where a surah opens on the page, the KFGQPC illuminated header band (`assets/surah-frame.png`) carries «سُورَةُ {name}» in its cartouche, followed by the basmala (except At-Tawba). Each `ayaText` already ends with the mushaf's ornate ayah-number glyph, so no number is drawn twice.
 
 ## The memorisation scope
 

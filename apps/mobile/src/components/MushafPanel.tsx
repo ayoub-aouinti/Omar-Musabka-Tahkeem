@@ -1,11 +1,15 @@
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { toDisplayDigits } from "@tahkeem/shared";
 import { colors, fonts, radius, spacing } from "../theme";
 import type { PageVerse, QuestionPage } from "../types";
 
 const FONT_SIZE = 26;
 const LINE_HEIGHT = Math.round(FONT_SIZE * 2.1);
+
+/** The KFGQPC illuminated surah-header band (1951×167). */
+const SURAH_FRAME = require("../../assets/surah-frame.png");
+const SURAH_FRAME_RATIO = 1951 / 167;
 
 /** At-Tawba (9) opens without a basmala; every other surah carries one. */
 const BASMALA = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ";
@@ -105,15 +109,20 @@ export function MushafPanel({ page }: { page: QuestionPage }) {
   );
 }
 
+/**
+ * The illuminated surah header, as the reference mushaf prints it: the ornamental
+ * KFGQPC band with «سُورَةُ {name}» centred in its cartouche, then the basmala.
+ */
 function SurahBand({ name, showBasmala }: { name: string; showBasmala: boolean }) {
   return (
     <View style={styles.band}>
-      <View style={styles.bandFrame}>
-        <Text style={styles.bandFlourish}>﴾</Text>
-        <Text style={styles.bandName} allowFontScaling={false}>
-          {name}
-        </Text>
-        <Text style={styles.bandFlourish}>﴿</Text>
+      <View style={styles.frameWrap}>
+        <Image source={SURAH_FRAME} style={styles.frame} resizeMode="stretch" />
+        <View style={styles.frameCaption} pointerEvents="none">
+          <Text style={styles.bandName} allowFontScaling={false} numberOfLines={1}>
+            سُورَةُ {name}
+          </Text>
+        </View>
       </View>
       {showBasmala ? (
         <Text style={styles.basmala} allowFontScaling={false}>
@@ -173,34 +182,35 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
   },
   highlight: {
-    // A soft wash marks the question span within the page.
-    backgroundColor: colors.primaryFixed,
-    color: colors.onPrimaryContainer,
+    // A soft, unobtrusive grey marks the question span within the page — light
+    // enough not to fight the script.
+    backgroundColor: colors.mushafHighlight,
   },
   band: {
-    alignItems: "center",
+    alignItems: "stretch",
     marginVertical: spacing.sm,
   },
-  bandFrame: {
-    flexDirection: "row",
-    alignItems: "center",
+  frameWrap: {
+    width: "100%",
+    aspectRatio: SURAH_FRAME_RATIO,
     justifyContent: "center",
-    gap: spacing.md,
-    alignSelf: "center",
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceContainerLow,
+    alignItems: "center",
+  },
+  frame: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  frameCaption: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    // The cartouche sits in the middle ~46% of the band.
+    paddingHorizontal: "28%",
   },
   bandName: {
     fontFamily: fonts.mushaf,
-    fontSize: 22,
-    color: colors.primary,
+    // The band is short, so scale the name to its height.
+    fontSize: 15,
+    color: colors.onSurface,
     textAlign: "center",
   },
-  bandFlourish: { fontSize: 20, color: colors.primary },
   basmala: {
     fontFamily: fonts.mushaf,
     fontSize: FONT_SIZE - 4,
