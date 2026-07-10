@@ -1,13 +1,16 @@
 import React from "react";
 import { Text } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tabs } from "expo-router";
 import { colors } from "../../src/theme";
 
 function TabGlyph({ glyph, color }: { glyph: string; color: string }) {
-  return <Text style={{ fontSize: 22, color }}>{glyph}</Text>;
+  return <Text style={{ fontSize: 20, color }}>{glyph}</Text>;
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -17,11 +20,17 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surfaceContainerLowest,
           borderTopColor: colors.outlineVariant,
-          height: 60,
-          paddingBottom: 6,
+          // Clear the home indicator; otherwise the labels sit under it.
+          height: 58 + insets.bottom,
+          paddingBottom: insets.bottom + 4,
           paddingTop: 6,
         },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+          marginTop: 2,
+        },
+        tabBarIconStyle: { marginTop: 2 },
       }}
     >
       <Tabs.Screen

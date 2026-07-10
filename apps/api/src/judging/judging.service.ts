@@ -152,51 +152,90 @@ export class JudgingService {
     const scoring = await this.competitions.getScoringConfig(session.competitionId);
     const questionCount = session.candidate.category.questionCount;
 
-    // Every question of the paper must be accounted for, otherwise a judge could
-    // lower the penalty simply by omitting a question they mishandled.
     const paper = await this.questions.listForCandidate(session.candidateId);
     const paperIds = new Set(paper.map((q) => q.id));
-    const submittedIds = new Set(dto.questions.map((q) => q.questionId));
 
-    for (const id of submittedIds) {
-      if (!paperIds.has(id)) {
+    for (const q of dto.questions) {
+      if (!paperIds.has(q.questionId)) {
         throw new BadRequestException("سؤال لا ينتمي إلى ورقة هذا المتسابق");
       }
     }
-    if (dto.finalize && submittedIds.size !== paperIds.size) {
-      throw new BadRequestException(
-        `يجب تقييم كل الأسئلة (${paperIds.size}) قبل اعتماد النتيجة`,
-      );
+
+    // Merge this submit over what is already stored, so the score always reflects
+    // the whole paper — a per-question save must not wipe the other questions.
+    const stored = await this.prisma.questionResult.findMany({
+      where: { judgingSessionId: session.id },
+    });
+    const storedById = new Map(stored.map((r) => [r.questionId, r]));
+
+    // Which questions the judge has locked in («اعتماد تقييم السؤال»). This
+    // submit may confirm or unconfirm some; the rest keep their stored state.
+    const confirmedIds = new Set(
+      stored.filter((r) => r.confirmed).map((r) => r.questionId),
+    );
+    for (const q of dto.questions) {
+      if (q.confirmed === true) confirmedIds.add(q.questionId);
+      else if (q.confirmed === false) confirmedIds.delete(q.questionId);
     }
 
-    // Unanswered questions in a draft count as flawless so far, not as missing.
+    if (dto.finalize) {
+      const unconfirmed = [...paperIds].filter((id) => !confirmedIds.has(id));
+      if (unconfirmed.length > 0) {
+        throw new BadRequestException(
+          `يجب تأكيد كل الأسئلة (${paperIds.size}) قبل اعتماد النتيجة`,
+        );
+      }
+    }
+
+    // Score from the merged view: this submit, else the stored row, else flawless.
     const tallies: QuestionTally[] = paper.map((question) => {
       const submitted = dto.questions.find((q) => q.questionId === question.id);
-      return submitted
+      if (submitted) {
+        return {
+          talathum: submitted.talathumCount,
+          tanbih: submitted.tanbihCount,
+          fath: submitted.fathCount,
+          cancelled: submitted.cancelled,
+        };
+      }
+      const row = storedById.get(question.id);
+      return row
         ? {
-            talathum: submitted.talathumCount,
-            tanbih: submitted.tanbihCount,
-            fath: submitted.fathCount,
-            cancelled: submitted.cancelled,
+            talathum: row.talathumCount,
+            tanbih: row.tanbihCount,
+            fath: row.fathCount,
+            cancelled: row.cancelled,
           }
         : emptyTally();
     });
 
-    const directScores: DirectCriterionScore[] = dto.criterionScores.map((s) => {
-      const criterion = scoring.directCriteria.find((c) => c.id === s.criterionId);
-      if (!criterion) {
+    for (const s of dto.criterionScores) {
+      if (!scoring.directCriteria.some((c) => c.id === s.criterionId)) {
         throw new BadRequestException(`معيار غير معروف: ${s.criterionId}`);
       }
-      return {
-        criterionId: criterion.id,
-        labelAr: criterion.labelAr,
-        maxPoints: criterion.maxPoints,
-        value: s.value,
-      };
+    }
+
+    // The general criteria (تجويد, صوت) are set once, after the last question.
+    // Merge this submit over stored values so finalising sees the full set.
+    const storedCriteria = await this.prisma.criterionScore.findMany({
+      where: { judgingSessionId: session.id },
     });
+    const criteriaValues = new Map(
+      storedCriteria.map((c) => [c.criterionId, c.value]),
+    );
+    for (const s of dto.criterionScores) criteriaValues.set(s.criterionId, s.value);
+
+    const directScores: DirectCriterionScore[] = scoring.directCriteria
+      .filter((c) => criteriaValues.has(c.id))
+      .map((c) => ({
+        criterionId: c.id,
+        labelAr: c.labelAr,
+        maxPoints: c.maxPoints,
+        value: criteriaValues.get(c.id) as number,
+      }));
 
     if (dto.finalize && directScores.length !== scoring.directCriteria.length) {
-      throw new BadRequestException("يجب إسناد درجة لكل معايير التقييم");
+      throw new BadRequestException("يجب إسناد درجة لكل المعايير العامّة");
     }
 
     let score: ReturnType<typeof computeCompetitionScore>;
@@ -216,6 +255,13 @@ export class JudgingService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const q of dto.questions) {
+        // Finalising confirms the whole paper; otherwise honour the flag, and
+        // keep a question's stored confirmation when the flag is omitted.
+        const confirmed = dto.finalize
+          ? true
+          : (q.confirmed ??
+            storedById.get(q.questionId)?.confirmed ??
+            false);
         await tx.questionResult.upsert({
           where: {
             judgingSessionId_questionId: {
@@ -228,6 +274,7 @@ export class JudgingService {
             tanbihCount: q.tanbihCount,
             fathCount: q.fathCount,
             cancelled: q.cancelled,
+            confirmed,
           },
           create: {
             judgingSessionId: session.id,
@@ -236,11 +283,13 @@ export class JudgingService {
             tanbihCount: q.tanbihCount,
             fathCount: q.fathCount,
             cancelled: q.cancelled,
+            confirmed,
           },
         });
       }
 
-      for (const s of directScores) {
+      // Persist only the general criteria this submit carried.
+      for (const s of dto.criterionScores) {
         await tx.criterionScore.upsert({
           where: {
             judgingSessionId_criterionId: {

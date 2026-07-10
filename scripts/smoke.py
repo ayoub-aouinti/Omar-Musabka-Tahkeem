@@ -215,23 +215,74 @@ def main() -> None:
     questions = [p["question"]["id"] for p in opened["questions"]]
     criteria = scoring["directCriteria"]
 
-    # 1 cancelled (-15) + 2 fath (-3) + 1 tanbih (-0.75) + 3 talathum (-0.75) = -19.5
-    payload = {
-        "sessionId": sid,
-        "questions": [
-            {"questionId": questions[0], "talathumCount": 0, "tanbihCount": 0, "fathCount": 0, "cancelled": True},
-            {"questionId": questions[1], "talathumCount": 0, "tanbihCount": 1, "fathCount": 2, "cancelled": False},
-            {"questionId": questions[2], "talathumCount": 3, "tanbihCount": 0, "fathCount": 0, "cancelled": False},
-            {"questionId": questions[3], "talathumCount": 0, "tanbihCount": 0, "fathCount": 0, "cancelled": False},
-        ],
-        "criterionScores": [
-            {"criterionId": criteria[0]["id"], "value": 27},
-            {"criterionId": criteria[1]["id"], "value": 8},
-        ],
-        "notes": "اختبار آلي",
-        "finalize": True,
-    }
-    score = call("/judging/submit", "POST", payload, jtoken)["score"]
+    # The mobile app scores one question at a time. «حفظ كمسودّة» stores the
+    # tallies unconfirmed; «اعتماد تقييم السؤال» locks it in. The عامّة criteria
+    # ride only on the final submit. An unconfirmed question cannot be finalised.
+    def q_body(qid, confirmed, talathum=0, tanbih=0, fath=0, cancelled=False):
+        return {
+            "sessionId": sid,
+            "questions": [{
+                "questionId": qid,
+                "talathumCount": talathum,
+                "tanbihCount": tanbih,
+                "fathCount": fath,
+                "cancelled": cancelled,
+                "confirmed": confirmed,
+            }],
+            "criterionScores": [],
+            "finalize": False,
+        }
+
+    # A draft: tallies persist, but the question stays unconfirmed.
+    call("/judging/submit", "POST", q_body(questions[0], False, talathum=2), jtoken)
+    stored = call(f"/judging/sessions/{kid}/open", "POST", None, jtoken)[
+        "session"
+    ]["questionResults"]
+    check(
+        "a per-question draft stores only that question",
+        len(stored) == 1 and stored[0]["questionId"] == questions[0],
+        f"{len(stored)} result row(s)",
+    )
+    check("the draft's tally survives a reopen", stored[0]["talathumCount"] == 2)
+    check("and the draft is not confirmed", stored[0]["confirmed"] is False)
+
+    def finalize(criterion_scores):
+        return call(
+            "/judging/submit", "POST",
+            {"sessionId": sid, "questions": [], "criterionScores": criterion_scores,
+             "finalize": True},
+            jtoken,
+        )
+
+    all_criteria = [{"criterionId": c["id"], "value": v}
+                    for c, v in zip(criteria, (27, 8))]
+    expect_error(
+        "finalizing before every question is confirmed is refused",
+        lambda: finalize(all_criteria),
+    )
+
+    # Confirm the paper, one question at a time — the real per-question flow.
+    # Q1 cancelled (−15), Q2 2 fath + 1 tanbih (−3.75), Q3 3 talathum (−0.75), Q4 clean.
+    call("/judging/submit", "POST", q_body(questions[0], True, cancelled=True), jtoken)
+    call("/judging/submit", "POST", q_body(questions[1], True, tanbih=1, fath=2), jtoken)
+    call("/judging/submit", "POST", q_body(questions[2], True, talathum=3), jtoken)
+    call("/judging/submit", "POST", q_body(questions[3], True), jtoken)
+
+    confirmed_rows = call(f"/judging/sessions/{kid}/open", "POST", None, jtoken)[
+        "session"
+    ]["questionResults"]
+    check(
+        "every question is now confirmed",
+        len(confirmed_rows) == 4 and all(r["confirmed"] for r in confirmed_rows),
+        f"{sum(r['confirmed'] for r in confirmed_rows)}/4 confirmed",
+    )
+
+    expect_error(
+        "finalizing without the عامّة criteria is refused",
+        lambda: finalize([]),
+    )
+
+    score = finalize(all_criteria)["score"]
     hifz = score["hifz"]
 
     check("cancelled question costs its full value", hifz["cancelledPenalty"] == 15)

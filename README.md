@@ -30,6 +30,19 @@ A question is worth `hifzBase ÷ questionCount` (60 ÷ 4 = 15 by default), so ca
 
 The base (60) and the three weights live in the database per competition and are editable in **الإعدادات**. Additional criteria the judge rates directly — `التجويد` /30 and `الأداء والصوت` /10 — are added on top, giving 100. Once any result is submitted the configuration freezes, so a late edit to a weight can never silently rewrite a published score.
 
+### خاصّة vs عامّة — how a judge scores
+
+The criteria split in two, and so does the judging flow:
+
+- **المعايير الخاصّة (الحفظ)** are scored **per question**. On each question's sheet the judge taps تلعثم/تنبيه/فتح/ملغى, then either **حفظ كمسودّة** (tallies persist, `confirmed = false`) or **اعتماد تقييم السؤال** (`confirmed = true`, advances to the next).
+- **المعايير العامّة (تجويد، صوت)** are scored **once, after the last question**, in the final sheet — together with **اعتماد النتيجة النهائية**.
+
+Finalising is refused until *every* question is confirmed and *every* general criterion is scored, so a question can never be silently counted as flawless. Confirmation is stored (`QuestionResult.confirmed`), so a judge who closes the app resumes with exactly the questions they had locked in.
+
+### The mushaf page
+
+The judging screen shows the **full mushaf page(s)** the question sits on — the whole page as printed, on ruled lines in the Qaloun font — with the question **highlighted from its first verse to its last**. Where a surah opens on the page, a decorated band with the surah name (and the basmala, except At-Tawba) precedes it. Each `ayaText` already ends with the mushaf's ornate ayah-number glyph, so no number is drawn twice.
+
 ## The memorisation scope
 
 Each candidate declares their range as free Arabic text in the `السّور المشارك بها` column. All 45 distinct forms in the 2026 workbook parse, including:

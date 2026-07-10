@@ -75,3 +75,18 @@ export function useSubmitSession(candidateId: string) {
     },
   });
 }
+
+/** The competition the judge's card is bound to — for a name, not an id. */
+export function useCompetition(competitionId: string | undefined) {
+  return useQuery({
+    queryKey: ["competition", competitionId],
+    enabled: Boolean(competitionId),
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await api.get<{ id: string; name: string }>(
+        `/competitions/${competitionId}`,
+      );
+      return data;
+    },
+  });
+}

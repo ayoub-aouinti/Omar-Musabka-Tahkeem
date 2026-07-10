@@ -371,6 +371,9 @@ model QuestionResult {
   fathCount     Int     @default(0)
   /// ملغى — the question is written off; costs one full question value.
   cancelled     Boolean @default(false)
+  /// اعتماد تقييم السؤال: the judge locked this question in. A false row is a
+  /// «حفظ كمسودّة» — its tallies persist but it does not count toward finalising.
+  confirmed     Boolean @default(false)
 
   updatedAt DateTime @updatedAt
 

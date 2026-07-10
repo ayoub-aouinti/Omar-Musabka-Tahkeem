@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -73,24 +74,33 @@ export default function CandidatesScreen() {
       />
 
       {categories.length > 0 ? (
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={[{ id: "__all__", labelAr: "الكل" }, ...categories]}
-          keyExtractor={(c) => c.id}
-          contentContainerStyle={styles.chipsRow}
-          renderItem={({ item }) => {
-            const isAll = item.id === "__all__";
-            const selected = isAll ? categoryId === null : categoryId === item.id;
-            return (
-              <Chip
-                label={item.labelAr}
-                selected={selected}
-                onPress={() => setCategoryId(isAll ? null : item.id)}
-              />
-            );
-          }}
-        />
+        <View style={styles.chipsWrap}>
+          {/*
+            A horizontal FlatList mis-measures and clips its row under an RTL
+            root. A plain ScrollView lays the chips out with the same direction
+            as everything else, so «الكل» starts flush at the right edge.
+          */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}
+          >
+            {[{ id: "__all__", labelAr: "الكل" }, ...categories].map((item) => {
+              const isAll = item.id === "__all__";
+              const selected = isAll
+                ? categoryId === null
+                : categoryId === item.id;
+              return (
+                <Chip
+                  key={item.id}
+                  label={item.labelAr}
+                  selected={selected}
+                  onPress={() => setCategoryId(isAll ? null : item.id)}
+                />
+              );
+            })}
+          </ScrollView>
+        </View>
       ) : null}
 
       {isLoading ? (
@@ -161,10 +171,13 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     writingDirection: "rtl",
   },
+  // A fixed height stops the row collapsing while the ScrollView measures.
+  chipsWrap: { height: 56 },
   chipsRow: {
+    alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   center: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },

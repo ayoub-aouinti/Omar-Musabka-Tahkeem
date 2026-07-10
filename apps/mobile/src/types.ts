@@ -74,6 +74,8 @@ export interface QuestionResultRecord {
   tanbihCount: number;
   fathCount: number;
   cancelled: boolean;
+  /** اعتماد تقييم السؤال locked this in; a draft row is false. */
+  confirmed: boolean;
 }
 
 export interface CriterionScoreRecord {
@@ -110,8 +112,34 @@ export interface Verse {
   hizbNumber: number;
 }
 
+/** A verse on the full mushaf page, flagged for highlight and surah opening. */
+export interface PageVerse {
+  id: number;
+  suraNumber: number;
+  suraNameAr: string;
+  ayaNumber: number;
+  ayaText: string;
+  page: string;
+  jozz: number;
+  hizbNumber: number;
+  /** Inside the question's span — shown shaded. */
+  highlighted: boolean;
+  /** Opens a surah on this page — a decorated band precedes it. */
+  startsSurah: boolean;
+}
+
+export interface QuestionPage {
+  pages: string[];
+  firstPage: number;
+  lastPage: number;
+  verses: PageVerse[];
+}
+
 export interface QuestionPassage {
   question: QuestionMeta;
+  /** The full mushaf page(s), with the question highlighted. */
+  page: QuestionPage;
+  /** The passage span only. */
   verses: Verse[];
   label: string;
   pages: string[];
@@ -154,6 +182,8 @@ export interface SubmitQuestion {
   tanbihCount: number;
   fathCount: number;
   cancelled: boolean;
+  /** true = اعتماد تقييم السؤال, false = حفظ كمسودّة. */
+  confirmed?: boolean;
 }
 
 export interface SubmitCriterionScore {

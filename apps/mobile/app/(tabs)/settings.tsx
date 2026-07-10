@@ -10,14 +10,16 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/lib/auth";
+import { useCompetition } from "../../src/lib/judging";
 import { useCountdown } from "../../src/lib/useElapsed";
-import { formatClock } from "../../src/lib/format";
+import { formatCountdown } from "../../src/lib/format";
 import { colors, MIN_TOUCH, radius, spacing } from "../../src/theme";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
   const remaining = useCountdown(user?.expiresAt);
+  const competition = useCompetition(user?.competitionId);
 
   const confirmLogout = () => {
     Alert.alert(
@@ -63,19 +65,19 @@ export default function SettingsScreen() {
         <Divider />
         <Row
           label="المسابقة المرتبطة"
-          value={user?.competitionId ? user.competitionId : "غير محدّدة"}
+          value={
+            competition.data?.name ??
+            (user?.competitionId ? "…" : "غير محدّدة")
+          }
         />
         {user?.expiresAt ? (
           <>
             <Divider />
             <Row
               label="انتهاء صلاحية الجلسة"
-              value={
-                remaining != null && remaining > 0
-                  ? formatClock(remaining)
-                  : "انتهت الصلاحية"
-              }
-              highlight={remaining != null && remaining <= 60}
+              value={formatCountdown(remaining)}
+              // The last five minutes are worth noticing mid-recitation.
+              highlight={remaining != null && remaining <= 5 * 60}
             />
           </>
         ) : null}

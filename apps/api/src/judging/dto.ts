@@ -16,6 +16,8 @@ export class QuestionTallyDto {
   @Type(() => Number) @IsInt() @Min(0) tanbihCount!: number;
   @Type(() => Number) @IsInt() @Min(0) fathCount!: number;
   @Type(() => Boolean) @IsBoolean() cancelled!: boolean;
+  /** اعتماد تقييم السؤال (true) vs حفظ كمسودّة (false). */
+  @IsOptional() @Type(() => Boolean) @IsBoolean() confirmed?: boolean;
 }
 
 export class CriterionScoreDto {

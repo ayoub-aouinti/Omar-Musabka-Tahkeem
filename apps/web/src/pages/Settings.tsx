@@ -286,10 +286,11 @@ export function SettingsPage() {
 
           <Card className="p-6">
             <h2 className="mb-1 font-headline-md text-lg text-on-surface">
-              المعايير المباشرة
+              المعايير العامّة
             </h2>
             <p className="mb-4 font-body-md text-sm text-on-surface-variant">
-              معايير يقيّمها المحكّم مباشرة (تجويد، أداء) بقيمة قصوى لكل منها.
+              معايير تُقيَّم مرّة واحدة بعد آخر سؤال (التجويد، الصوت) بقيمة قصوى
+              لكل منها. أمّا معايير الحفظ الخاصّة فتُرصد لكلّ سؤال على حدة.
             </p>
             {directs.length === 0 ? (
               <p className="font-body-md text-sm text-on-surface-variant">
@@ -355,7 +356,7 @@ export function SettingsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-on-surface-variant">
-                  مجموع المعايير المباشرة
+                  مجموع المعايير العامّة
                 </span>
                 <span className="text-on-surface" dir="ltr">
                   {round2(directTotal)}

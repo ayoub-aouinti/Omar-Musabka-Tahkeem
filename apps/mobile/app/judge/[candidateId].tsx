@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -11,9 +10,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { toDisplayDigits } from "@tahkeem/shared";
+import { computeHifz, emptyTally, toDisplayDigits } from "@tahkeem/shared";
 import { MushafPanel } from "../../src/components/MushafPanel";
 import { ScoringSheet } from "../../src/components/ScoringSheet";
+import { FinalSheet } from "../../src/components/FinalSheet";
 import { apiErrorMessage } from "../../src/lib/api";
 import { useOpenSession, useSubmitSession } from "../../src/lib/judging";
 import { useScoring, type TallyKey } from "../../src/lib/useScoring";
@@ -61,13 +61,17 @@ function JudgeSession({
   const submit = useSubmitSession(candidateId);
 
   const sheetRef = useRef<BottomSheetModal>(null);
+  const finalSheetRef = useRef<BottomSheetModal>(null);
   const [current, setCurrent] = useState(0);
-  const [action, setAction] = useState<"draft" | "finalize" | null>(null);
+  const [action, setAction] = useState<
+    "confirm" | "draft" | "finalDraft" | "finalize" | null
+  >(null);
 
   const readOnly = data.session.status === "SUBMITTED";
   const questions = data.questions;
   const total = questions.length;
   const passage = questions[current];
+  const hasNext = current < total - 1;
 
   const questionLabel = useMemo(
     () => `السؤال ${toDisplayDigits(current + 1)} من ${toDisplayDigits(total)}`,
@@ -76,47 +80,82 @@ function JudgeSession({
 
   const openSheet = useCallback(() => sheetRef.current?.present(), []);
 
-  const runSubmit = useCallback(
-    async (finalize: boolean) => {
+  /** Save the open question's خاصّة tallies; `confirm` locks it in. */
+  const saveQuestion = useCallback(
+    async (confirm: boolean) => {
       if (!passage) return;
-      setAction(finalize ? "finalize" : "draft");
+      const questionId = passage.question.id;
+      setAction(confirm ? "confirm" : "draft");
       try {
-        const body = scoring.buildBody(data.session.id, finalize);
-        await submit.mutateAsync(body);
-        sheetRef.current?.dismiss();
-        Alert.alert(
-          finalize ? "تم الاعتماد" : "تم الحفظ",
-          finalize
-            ? "تم اعتماد النتيجة بنجاح."
-            : "تم حفظ المسودة بنجاح.",
+        await submit.mutateAsync(
+          scoring.buildQuestionBody(data.session.id, questionId, confirm),
         );
+        scoring.markConfirmed(questionId, confirm);
+        sheetRef.current?.dismiss();
+        if (confirm && hasNext) setCurrent((c) => c + 1);
       } catch (e) {
         Alert.alert("تعذّر الحفظ", apiErrorMessage(e));
       } finally {
         setAction(null);
       }
     },
-    [passage, scoring, data.session.id, submit],
+    [passage, scoring, data.session.id, submit, hasNext],
+  );
+
+  /** Save the عامّة criteria (finalize=false), or commit the whole result. */
+  const runFinal = useCallback(
+    async (finalize: boolean) => {
+      setAction(finalize ? "finalize" : "finalDraft");
+      try {
+        await submit.mutateAsync(
+          scoring.buildFinalBody(data.session.id, finalize),
+        );
+        if (finalize) {
+          finalSheetRef.current?.dismiss();
+          Alert.alert("تم الاعتماد", "تم اعتماد نتيجة المتسابق بنجاح.");
+        }
+      } catch (e) {
+        Alert.alert(
+          finalize ? "تعذّر الاعتماد" : "تعذّر الحفظ",
+          apiErrorMessage(e),
+        );
+      } finally {
+        setAction(null);
+      }
+    },
+    [scoring, data.session.id, submit],
   );
 
   const onFinalize = useCallback(() => {
     Alert.alert(
-      "اعتماد النتيجة",
+      "اعتماد النتيجة النهائية",
       "بعد الاعتماد لا يمكن تعديل النتيجة. هل تريد المتابعة؟",
       [
         { text: "إلغاء", style: "cancel" },
         {
           text: "اعتماد",
           style: "destructive",
-          onPress: () => void runSubmit(true),
+          onPress: () => void runFinal(true),
         },
       ],
     );
-  }, [runSubmit]);
+  }, [runFinal]);
 
   const currentTally = passage
     ? scoring.tallyFor(passage.question.id)
     : undefined;
+
+  // This question's own contribution to عدد الحفظ, for the sheet's breakdown.
+  const questionHifz = useMemo(
+    () =>
+      computeHifz({
+        baseScore: data.scoring.pointsPerQuestion,
+        questionCount: 1,
+        weights: data.scoring.weights,
+        tallies: [currentTally ?? emptyTally()],
+      }),
+    [data.scoring, currentTally],
+  );
 
   return (
     <View style={styles.flex}>
@@ -149,15 +188,17 @@ function JudgeSession({
         </View>
       ) : null}
 
-      {/* question selector */}
+      {/* question selector — compact, so the mushaf gets the height */}
       <View style={styles.selector}>
         <Pressable
           onPress={() => setCurrent((c) => Math.max(0, c - 1))}
           disabled={current === 0}
           style={[styles.navButton, current === 0 && styles.navDisabled]}
+          accessibilityLabel="السؤال السابق"
         >
           <Text style={styles.navGlyph}>›</Text>
         </Pressable>
+
         <View style={styles.selectorCenter}>
           <Text style={styles.selectorLabel}>{questionLabel}</Text>
           {passage ? (
@@ -166,55 +207,81 @@ function JudgeSession({
             </Text>
           ) : null}
         </View>
+
         <Pressable
           onPress={() => setCurrent((c) => Math.min(total - 1, c + 1))}
           disabled={current >= total - 1}
           style={[styles.navButton, current >= total - 1 && styles.navDisabled]}
+          accessibilityLabel="السؤال التالي"
         >
           <Text style={styles.navGlyph}>‹</Text>
         </Pressable>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.dots}
-      >
-        {questions.map((q, i) => (
-          <Pressable
-            key={q.question.id}
-            onPress={() => setCurrent(i)}
-            style={[styles.dot, i === current && styles.dotActive]}
-          >
-            <Text style={[styles.dotText, i === current && styles.dotTextActive]}>
-              {toDisplayDigits(i + 1)}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.dots}>
+        {questions.map((q, i) => {
+          const confirmed = scoring.isConfirmed(q.question.id);
+          return (
+            <Pressable
+              key={q.question.id}
+              onPress={() => setCurrent(i)}
+              style={[
+                styles.dot,
+                confirmed && styles.dotConfirmed,
+                i === current && styles.dotActive,
+              ]}
+              accessibilityLabel={`السؤال ${i + 1}${confirmed ? " — مؤكَّد" : ""}`}
+            >
+              <Text
+                style={[styles.dotText, i === current && styles.dotTextActive]}
+              >
+                {confirmed && i !== current ? "✓" : toDisplayDigits(i + 1)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-      {/* mushaf */}
+      {/* mushaf — full page, question highlighted */}
       <View style={styles.mushafWrap}>
-        {passage ? <MushafPanel passage={passage} /> : null}
+        {passage ? <MushafPanel page={passage.page} /> : null}
       </View>
 
       {/* bottom bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.md }]}>
-        <View style={styles.totalCol}>
-          <Text style={styles.totalLabel}>المجموع</Text>
-          <Text style={styles.totalValue}>
-            {formatScore(scoring.score.total)} / {formatScore(scoring.score.maxTotal)}
-          </Text>
+        <View style={styles.barRow}>
+          <View style={styles.totalCol}>
+            <Text style={styles.totalLabel}>المجموع</Text>
+            <Text style={styles.totalValue}>
+              {formatScore(scoring.score.total)} /{" "}
+              {formatScore(scoring.score.maxTotal)}
+            </Text>
+          </View>
+          <Pressable
+            onPress={openSheet}
+            style={({ pressed }) => [
+              styles.openButton,
+              pressed && styles.openButtonPressed,
+            ]}
+          >
+            <Text style={styles.openButtonText}>
+              {readOnly ? "عرض تقييم السؤال" : "تقييم هذا السؤال"}
+            </Text>
+          </Pressable>
         </View>
+
+        {/* The عامّة criteria + final approval open in their own sheet. */}
         <Pressable
-          onPress={openSheet}
+          onPress={() => finalSheetRef.current?.present()}
           style={({ pressed }) => [
-            styles.openButton,
-            pressed && styles.openButtonPressed,
+            styles.finalizeButton,
+            pressed && styles.finalizeButtonPressed,
           ]}
         >
-          <Text style={styles.openButtonText}>
-            {readOnly ? "عرض التقييم" : "فتح لوحة التقييم"}
+          <Text style={styles.finalizeButtonText}>
+            {readOnly
+              ? "عرض النتيجة النهائية"
+              : `المعايير العامّة والاعتماد (${toDisplayDigits(scoring.confirmed.size)}/${toDisplayDigits(total)})`}
           </Text>
         </Pressable>
       </View>
@@ -225,25 +292,40 @@ function JudgeSession({
           scoring={data.scoring}
           questionLabel={questionLabel}
           tally={currentTally}
-          criteriaValues={scoring.criteria}
+          hifz={questionHifz}
           notes={scoring.notes}
-          score={scoring.score}
           readOnly={readOnly}
+          confirming={action === "confirm"}
           savingDraft={action === "draft"}
-          finalizing={action === "finalize"}
-          canFinalize={scoring.allCriteriaScored}
+          isConfirmed={scoring.isConfirmed(passage.question.id)}
+          hasNext={hasNext}
           onCount={(key: TallyKey, value: number) =>
             scoring.setCount(passage.question.id, key, value)
           }
           onCancelled={(value: boolean) =>
             scoring.setCancelled(passage.question.id, value)
           }
-          onCriterion={scoring.setCriterion}
           onNotes={scoring.setNotes}
-          onSaveDraft={() => void runSubmit(false)}
-          onFinalize={onFinalize}
+          onConfirm={() => void saveQuestion(true)}
+          onSaveDraft={() => void saveQuestion(false)}
         />
       ) : null}
+
+      <FinalSheet
+        ref={finalSheetRef}
+        scoring={data.scoring}
+        criteriaValues={scoring.criteria}
+        score={scoring.score}
+        readOnly={readOnly}
+        allQuestionsConfirmed={scoring.allQuestionsConfirmed}
+        confirmedCount={scoring.confirmed.size}
+        totalQuestions={total}
+        savingDraft={action === "finalDraft"}
+        finalizing={action === "finalize"}
+        onCriterion={scoring.setCriterion}
+        onSaveDraft={() => void runFinal(false)}
+        onFinalize={onFinalize}
+      />
     </View>
   );
 }
@@ -321,7 +403,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     gap: spacing.md,
   },
   navButton: {
@@ -338,38 +420,53 @@ const styles = StyleSheet.create({
   selectorLabel: { fontSize: 17, fontWeight: "800", color: colors.onSurface },
   passageLabel: { fontSize: 13, color: colors.onSurfaceVariant, marginTop: 2 },
   dots: {
+    flexDirection: "row",
+    justifyContent: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   dot: {
-    minWidth: 36,
-    height: 36,
+    minWidth: 34,
+    height: 34,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceContainerHigh,
     alignItems: "center",
     justifyContent: "center",
   },
+  dotConfirmed: { backgroundColor: colors.primaryFixed },
   dotActive: { backgroundColor: colors.primary },
   dotText: { fontSize: 15, fontWeight: "700", color: colors.onSurfaceVariant },
   dotTextActive: { color: colors.onPrimary },
   mushafWrap: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
   },
   bottomBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.lg,
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     backgroundColor: colors.surfaceContainerLowest,
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant,
   },
+  barRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.lg,
+  },
+  finalizeButton: {
+    minHeight: MIN_TOUCH,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryContainer,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  finalizeButtonPressed: { backgroundColor: colors.primary },
+  finalizeButtonText: { color: colors.onPrimary, fontSize: 16, fontWeight: "800" },
   totalCol: { gap: 2 },
   totalLabel: { fontSize: 13, color: colors.onSurfaceVariant },
   totalValue: { fontSize: 22, fontWeight: "800", color: colors.primary },

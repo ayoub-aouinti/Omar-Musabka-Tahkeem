@@ -17,16 +17,27 @@ export interface ScoringState {
   criteria: CriterionMap;
   notes: string;
   score: CompetitionScore;
-  /** Every question tallied (always true — untallied count as flawless). */
-  allQuestionsPresent: boolean;
-  /** Every direct criterion has an explicit value. Required to finalize. */
+  /** Questions the judge has confirmed («اعتماد تقييم السؤال»). */
+  confirmed: Set<string>;
+  /** Every question of the paper confirmed. Required to finalize. */
+  allQuestionsConfirmed: boolean;
+  /** Every general criterion has an explicit value. Required to finalize. */
   allCriteriaScored: boolean;
   setCount: (questionId: string, key: TallyKey, value: number) => void;
   setCancelled: (questionId: string, cancelled: boolean) => void;
   setCriterion: (criterionId: string, value: number) => void;
   setNotes: (notes: string) => void;
+  markConfirmed: (questionId: string, confirmed: boolean) => void;
   tallyFor: (questionId: string) => QuestionTally;
-  buildBody: (sessionId: string, finalize: boolean) => SubmitBody;
+  isConfirmed: (questionId: string) => boolean;
+  /** One question's خاصّة tallies. `confirm` = اعتماد, else حفظ كمسودّة. */
+  buildQuestionBody: (
+    sessionId: string,
+    questionId: string,
+    confirm: boolean,
+  ) => SubmitBody;
+  /** The عامّة criteria, plus notes. `finalize` gates «اعتماد النتيجة». */
+  buildFinalBody: (sessionId: string, finalize: boolean) => SubmitBody;
 }
 
 function initTallies(data: OpenSessionResponse): TallyMap {
@@ -65,6 +76,17 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     initCriteria(data),
   );
   const [notes, setNotes] = useState<string>(data.session.notes ?? "");
+
+  // Only a *confirmed* result row counts: a «حفظ كمسودّة» leaves its tallies but
+  // confirmed=false, so resuming restores exactly which questions were locked in.
+  const [confirmed, setConfirmed] = useState<Set<string>>(
+    () =>
+      new Set(
+        data.session.questionResults
+          .filter((r) => r.confirmed)
+          .map((r) => r.questionId),
+      ),
+  );
 
   const tallyFor = useCallback(
     (questionId: string): QuestionTally =>
@@ -118,27 +140,65 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     [data.scoring.directCriteria, criteria],
   );
 
-  const buildBody = useCallback(
+  const markConfirmed = useCallback((questionId: string, value: boolean) => {
+    setConfirmed((prev) => {
+      const next = new Set(prev);
+      if (value) next.add(questionId);
+      else next.delete(questionId);
+      return next;
+    });
+  }, []);
+
+  const isConfirmed = useCallback(
+    (questionId: string) => confirmed.has(questionId),
+    [confirmed],
+  );
+
+  const allQuestionsConfirmed = useMemo(
+    () => data.questions.every((p) => confirmed.has(p.question.id)),
+    [data.questions, confirmed],
+  );
+
+  // A per-question save carries ONLY that question's خاصّة tallies. The general
+  // criteria never ride along here — they belong to the final step.
+  const buildQuestionBody = useCallback(
+    (sessionId: string, questionId: string, confirm: boolean): SubmitBody => {
+      const t = tallies[questionId] ?? emptyTally();
+      return {
+        sessionId,
+        questions: [
+          {
+            questionId,
+            talathumCount: t.talathum,
+            tanbihCount: t.tanbih,
+            fathCount: t.fath,
+            cancelled: t.cancelled,
+            confirmed: confirm,
+          },
+        ],
+        criterionScores: [],
+        finalize: false,
+      };
+    },
+    [tallies],
+  );
+
+  // The final step carries the عامّة criteria and notes. The server already holds
+  // every question's confirmed tallies, so none are re-sent here.
+  const buildFinalBody = useCallback(
     (sessionId: string, finalize: boolean): SubmitBody => ({
       sessionId,
-      questions: data.questions.map((p) => {
-        const t = tallies[p.question.id] ?? emptyTally();
-        return {
-          questionId: p.question.id,
-          talathumCount: t.talathum,
-          tanbihCount: t.tanbih,
-          fathCount: t.fath,
-          cancelled: t.cancelled,
-        };
-      }),
-      criterionScores: data.scoring.directCriteria.map((c) => ({
-        criterionId: c.id,
-        value: Math.min(c.maxPoints, Math.max(0, criteria[c.id] ?? 0)),
-      })),
+      questions: [],
+      criterionScores: data.scoring.directCriteria
+        .filter((c) => criteria[c.id] != null)
+        .map((c) => ({
+          criterionId: c.id,
+          value: Math.min(c.maxPoints, Math.max(0, criteria[c.id])),
+        })),
       notes: notes.trim() ? notes.trim() : undefined,
       finalize,
     }),
-    [data, tallies, criteria, notes],
+    [data.scoring.directCriteria, criteria, notes],
   );
 
   return {
@@ -146,13 +206,17 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     criteria,
     notes,
     score,
-    allQuestionsPresent: true,
+    confirmed,
+    allQuestionsConfirmed,
     allCriteriaScored,
     setCount,
     setCancelled,
     setCriterion,
     setNotes,
+    markConfirmed,
     tallyFor,
-    buildBody,
+    isConfirmed,
+    buildQuestionBody,
+    buildFinalBody,
   };
 }

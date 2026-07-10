@@ -38,22 +38,36 @@ export class QuestionsService {
     });
   }
 
-  /** Resolve a question's verses so the mobile app can render the passage. */
+  /**
+   * Resolve a question for the mobile app: the full mushaf page(s) it sits on,
+   * with the passage highlighted, plus the passage's own verses (used for the
+   * short label). The judge reads the page as printed, not a bare excerpt.
+   */
   async getPassage(questionId: string) {
     const question = await this.prisma.question.findUnique({
       where: { id: questionId },
     });
     if (!question) throw new NotFoundException("السؤال غير موجود");
 
-    const verses = this.quran.getRange(question.startVerseId, question.endVerseId);
-    const first = verses[0];
-    const last = verses[verses.length - 1];
+    const passageVerses = this.quran.getRange(
+      question.startVerseId,
+      question.endVerseId,
+    );
+    const first = passageVerses[0];
+    const last = passageVerses[passageVerses.length - 1];
+    const page = this.quran.getQuestionPage(
+      question.startVerseId,
+      question.endVerseId,
+    );
 
     return {
       question,
-      verses,
+      // Full page(s) with per-verse highlight + surah-start flags.
+      page,
+      // The passage span only — kept for callers that still want it.
+      verses: passageVerses,
       label: `${first.suraNameAr.trim()} ${first.ayaNumber} — ${last.suraNameAr.trim()} ${last.ayaNumber}`,
-      pages: [...new Set(verses.map((v) => v.page))],
+      pages: page.pages,
     };
   }
 

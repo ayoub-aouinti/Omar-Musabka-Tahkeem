@@ -121,6 +121,60 @@ export class QuranService implements OnModuleInit {
     return this.verses.filter((v) => v.id >= startVerseId && v.id <= endVerseId);
   }
 
+  /** The page a verse begins on. Some verses straddle two ("85-86"). */
+  private firstPageOf(verse: QuranVerse): number {
+    return Number.parseInt(verse.page, 10);
+  }
+
+  /**
+   * The full mushaf page(s) a passage occupies — every verse from the top of its
+   * first page to the bottom of its last — with each verse flagged whether it
+   * falls inside the highlighted span and whether it opens a new surah.
+   *
+   * This is what «التزم بعرض صفحة المصحف كما هي» needs: the judge sees the whole
+   * page as printed, with the question shaded from its first verse to its last.
+   */
+  getQuestionPage(startVerseId: number, endVerseId: number) {
+    this.ready();
+    if (endVerseId < startVerseId) {
+      throw new BadRequestException("نهاية النطاق قبل بدايته");
+    }
+
+    const startVerse = this.getVerse(startVerseId);
+    const endVerse = this.getVerse(endVerseId);
+    const firstPage = this.firstPageOf(startVerse);
+    const lastPage = this.firstPageOf(endVerse);
+
+    const pageVerses = this.verses.filter((v) => {
+      const page = this.firstPageOf(v);
+      return page >= firstPage && page <= lastPage;
+    });
+
+    const verses = pageVerses.map((verse, i) => {
+      const prev = pageVerses[i - 1];
+      return {
+        id: verse.id,
+        suraNumber: verse.suraNumber,
+        suraNameAr: verse.suraNameAr.trim(),
+        ayaNumber: verse.ayaNumber,
+        ayaText: verse.ayaText,
+        page: verse.page,
+        jozz: verse.jozz,
+        hizbNumber: verse.hizbNumber,
+        highlighted: verse.id >= startVerseId && verse.id <= endVerseId,
+        // The band is drawn before a verse that opens a surah within the page.
+        startsSurah: verse.ayaNumber === 1 && (!prev || prev.suraNumber !== verse.suraNumber),
+      };
+    });
+
+    return {
+      pages: [...new Set(pageVerses.map((v) => v.page))],
+      firstPage,
+      lastPage,
+      verses,
+    };
+  }
+
   /** All verses printed on one mushaf page. */
   getPage(page: string): QuranVerse[] {
     this.ready();

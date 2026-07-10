@@ -18,27 +18,40 @@ import { toDisplayDigits, type PenaltyWeights, type QuestionTally } from "@tahke
 import { colors, MIN_TOUCH, radius, spacing } from "../theme";
 import { formatDeduction, formatScore } from "../lib/format";
 import { Stepper } from "./Stepper";
-import type { CompetitionScore } from "@tahkeem/shared";
-import type { DirectCriterion, ScoringConfig } from "../types";
+import type { ScoringConfig } from "../types";
 import type { TallyKey } from "../lib/useScoring";
 
+/**
+ * The «خاصّة» sheet — the memorisation (hifز) tallies for ONE question. The
+ * «عامّة» criteria (تجويد, صوت) are not here; they belong to the final step.
+ */
 interface ScoringSheetProps {
   scoring: ScoringConfig;
   questionLabel: string;
   tally: QuestionTally;
-  criteriaValues: Record<string, number>;
-  notes: string;
-  score: CompetitionScore;
+  /** This question's own hifz deduction, for the live breakdown. */
+  hifz: {
+    pointsPerQuestion: number;
+    talathumPenalty: number;
+    tanbihPenalty: number;
+    fathPenalty: number;
+    cancelledPenalty: number;
+    score: number;
+  };
   readOnly: boolean;
+  /** اعتماد تقييم السؤال in flight. */
+  confirming: boolean;
+  /** حفظ كمسودّة in flight. */
   savingDraft: boolean;
-  finalizing: boolean;
-  canFinalize: boolean;
+  /** This question is already confirmed. */
+  isConfirmed: boolean;
+  hasNext: boolean;
   onCount: (key: TallyKey, value: number) => void;
   onCancelled: (value: boolean) => void;
-  onCriterion: (criterionId: string, value: number) => void;
   onNotes: (value: string) => void;
+  notes: string;
+  onConfirm: () => void;
   onSaveDraft: () => void;
-  onFinalize: () => void;
 }
 
 const PENALTY_ROWS: ReadonlyArray<{
@@ -57,23 +70,21 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
       scoring,
       questionLabel,
       tally,
-      criteriaValues,
+      hifz,
       notes,
-      score,
       readOnly,
+      confirming,
       savingDraft,
-      finalizing,
-      canFinalize,
+      isConfirmed,
+      hasNext,
       onCount,
       onCancelled,
-      onCriterion,
       onNotes,
+      onConfirm,
       onSaveDraft,
-      onFinalize,
     } = props;
 
     const snapPoints = useMemo(() => ["55%", "92%"], []);
-    const busy = savingDraft || finalizing;
 
     const renderBackdrop = useCallback(
       (backdropProps: BottomSheetBackdropProps) => (
@@ -87,8 +98,6 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
       [],
     );
 
-    const hifz = score.hifz;
-
     return (
       <BottomSheetModal
         ref={ref}
@@ -100,7 +109,21 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
         backgroundStyle={styles.sheetBg}
       >
         <BottomSheetScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.sheetTitle}>{questionLabel}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.sheetTitle}>{questionLabel}</Text>
+            <View
+              style={[styles.badge, isConfirmed ? styles.badgeOn : styles.badgeOff]}
+            >
+              <Text
+                style={
+                  isConfirmed ? styles.badgeOnText : styles.badgeOffText
+                }
+              >
+                {isConfirmed ? "مؤكَّد" : "مسودّة"}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.groupCaption}>المعايير الخاصّة (الحفظ)</Text>
 
           {/* ── penalty counters for the current question ── */}
           <View style={styles.section}>
@@ -144,31 +167,6 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
             </View>
           </View>
 
-          {/* ── direct criteria ── */}
-          <Text style={styles.groupTitle}>المعايير المباشرة</Text>
-          <View style={styles.section}>
-            {scoring.directCriteria.map((criterion: DirectCriterion) => {
-              const value = criteriaValues[criterion.id] ?? 0;
-              return (
-                <View key={criterion.id} style={styles.counterRow}>
-                  <View style={styles.counterLabelCol}>
-                    <Text style={styles.counterLabel}>{criterion.labelAr}</Text>
-                    <Text style={styles.counterDeduction}>
-                      {formatScore(value)} / {toDisplayDigits(criterion.maxPoints)}
-                    </Text>
-                  </View>
-                  <Stepper
-                    value={value}
-                    onChange={(v) => onCriterion(criterion.id, v)}
-                    min={0}
-                    max={criterion.maxPoints}
-                    disabled={readOnly}
-                  />
-                </View>
-              );
-            })}
-          </View>
-
           {/* ── notes ── */}
           <Text style={styles.groupTitle}>ملاحظات المحكّم</Text>
           <BottomSheetTextInput
@@ -182,7 +180,7 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
             placeholderTextColor={colors.outline}
           />
 
-          {/* ── live breakdown ── */}
+          {/* ── live breakdown for THIS question ── */}
           <View style={styles.breakdown}>
             <BreakdownLine label="إلغاء" value={formatDeduction(hifz.cancelledPenalty)} />
             <BreakdownLine label="فتح" value={formatDeduction(hifz.fathPenalty)} />
@@ -190,24 +188,14 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
             <BreakdownLine label="تلعثم" value={formatDeduction(hifz.talathumPenalty)} />
             <View style={styles.breakdownDivider} />
             <BreakdownLine
-              label="عدد الحفظ"
-              value={`${formatScore(hifz.score)} / ${toDisplayDigits(scoring.hifzBase)}`}
-              strong
-            />
-            <BreakdownLine
-              label="المعايير المباشرة"
-              value={formatScore(score.directTotal)}
-            />
-            <View style={styles.breakdownDivider} />
-            <BreakdownLine
-              label="المجموع"
-              value={`${formatScore(score.total)} / ${formatScore(score.maxTotal)}`}
+              label="نقاط هذا السؤال"
+              value={`${formatScore(hifz.score)} / ${formatScore(hifz.pointsPerQuestion)}`}
               strong
               highlight
             />
           </View>
 
-          {/* ── actions ── */}
+          {/* ── actions: this question only ── */}
           {readOnly ? (
             <View style={styles.lockedBanner}>
               <Text style={styles.lockedText}>نتيجة معتمدة — للعرض فقط</Text>
@@ -216,39 +204,42 @@ export const ScoringSheet = forwardRef<BottomSheetModal, ScoringSheetProps>(
             <View style={styles.actions}>
               <Pressable
                 onPress={onSaveDraft}
-                disabled={busy}
+                disabled={confirming || savingDraft}
                 style={({ pressed }) => [
                   styles.draftButton,
-                  pressed && !busy && styles.draftButtonPressed,
-                  busy && styles.buttonDisabled,
+                  pressed && !savingDraft && styles.draftButtonPressed,
+                  (confirming || savingDraft) && styles.buttonDisabled,
                 ]}
               >
                 {savingDraft ? (
                   <ActivityIndicator color={colors.primary} />
                 ) : (
-                  <Text style={styles.draftButtonText}>حفظ كمسودة</Text>
+                  <Text style={styles.draftButtonText}>حفظ كمسودّة</Text>
                 )}
               </Pressable>
               <Pressable
-                onPress={onFinalize}
-                disabled={busy || !canFinalize}
+                onPress={onConfirm}
+                disabled={confirming || savingDraft}
                 style={({ pressed }) => [
-                  styles.finalizeButton,
-                  pressed && !busy && canFinalize && styles.finalizeButtonPressed,
-                  (busy || !canFinalize) && styles.buttonDisabled,
+                  styles.confirmButton,
+                  pressed && !confirming && styles.confirmButtonPressed,
+                  (confirming || savingDraft) && styles.buttonDisabled,
                 ]}
               >
-                {finalizing ? (
+                {confirming ? (
                   <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                  <Text style={styles.finalizeButtonText}>اعتماد النتيجة</Text>
+                  <Text style={styles.confirmButtonText}>
+                    {hasNext ? "اعتماد والتالي ›" : "اعتماد التقييم"}
+                  </Text>
                 )}
               </Pressable>
             </View>
           )}
-          {!readOnly && !canFinalize ? (
+          {!readOnly ? (
             <Text style={styles.hint}>
-              لاعتماد النتيجة قيّم كل المعايير المباشرة أولًا.
+              معايير التجويد والصوت العامّة تُقيَّم بعد آخر سؤال مع اعتماد النتيجة
+              النهائية.
             </Text>
           ) : null}
         </BottomSheetScrollView>
@@ -290,11 +281,31 @@ const styles = StyleSheet.create({
   sheetBg: { backgroundColor: colors.surface },
   handle: { backgroundColor: colors.outline, width: 44 },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   sheetTitle: {
     fontSize: 18,
     fontWeight: "800",
     color: colors.onSurface,
-    textAlign: "center",
+    textAlign: "right",
+  },
+  badge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  badgeOn: { backgroundColor: colors.primaryFixed },
+  badgeOff: { backgroundColor: colors.surfaceContainerHigh },
+  badgeOnText: { color: colors.onPrimaryContainer, fontSize: 12, fontWeight: "700" },
+  badgeOffText: { color: colors.onSurfaceVariant, fontSize: 12, fontWeight: "700" },
+  groupCaption: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    textAlign: "right",
+    marginTop: -spacing.xs,
   },
   groupTitle: {
     fontSize: 15,
@@ -372,7 +383,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.outlineVariant,
     marginVertical: spacing.xs,
   },
-  actions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
+  actions: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
   draftButton: {
     flex: 1,
     minHeight: MIN_TOUCH + 4,
@@ -384,7 +399,7 @@ const styles = StyleSheet.create({
   },
   draftButtonPressed: { backgroundColor: colors.primaryFixed },
   draftButtonText: { color: colors.primary, fontSize: 16, fontWeight: "700" },
-  finalizeButton: {
+  confirmButton: {
     flex: 1,
     minHeight: MIN_TOUCH + 4,
     borderRadius: radius.md,
@@ -392,8 +407,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  finalizeButtonPressed: { backgroundColor: colors.primaryContainer },
-  finalizeButtonText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
+  confirmButtonPressed: { backgroundColor: colors.primaryContainer },
+  confirmButtonText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
   buttonDisabled: { opacity: 0.5 },
   hint: {
     fontSize: 13,

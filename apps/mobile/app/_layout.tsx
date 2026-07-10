@@ -13,9 +13,12 @@ import { AuthProvider, useAuth } from "../src/lib/auth";
 import { queryClient } from "../src/lib/queryClient";
 import { colors } from "../src/theme";
 
-// Force RTL at startup, before any view mounts.
+// `I18nManager.forceRTL(true)` only takes effect after a *native* reload, so on
+// first launch (and always, in Expo Go) the app would lay out left-to-right —
+// which is exactly what happened. Allow RTL for native components, then set the
+// direction explicitly on the root view below: Yoga applies it on the first
+// render, no restart, no half-mirrored screens.
 I18nManager.allowRTL(true);
-I18nManager.forceRTL(true);
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -85,7 +88,9 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  // Every descendant lays out right-to-left, so `flexDirection: "row"` already
+  // runs right→left. Never write `row-reverse` under this root: it flips back.
+  root: { flex: 1, backgroundColor: colors.background, direction: "rtl" },
   loading: {
     flex: 1,
     alignItems: "center",
