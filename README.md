@@ -5,7 +5,9 @@ Judging platform for the Quran memorisation competitions of the **عمر بن ا
 - **`apps/api`** — NestJS + PostgreSQL (Prisma). The single source of truth for scoring.
 - **`apps/web`** — React admin dashboard (competitions, candidates, judges, QR issuance, settings, results).
 - **`apps/mobile`** — Expo app for judges (QR login, candidate list, mushaf, scoring panel).
-- **`packages/shared`** — the scoring engine, the scope parser, and the Arabic normaliser. Imported by all three, so the judge's phone and the server compute a score with the same code.
+- **`packages/shared`** — the scoring engine, the scope parser, and the Arabic normaliser. Imported by all three, so the judge's phone and the server compute a score with the same code. It builds twice: CommonJS (`dist/cjs`, for Nest and Metro) and ESM (`dist/esm`, for Vite). Vite reads the ESM build directly, so a rebuilt `dist/` is never shadowed by a stale pre-bundled CJS chunk.
+
+Numbers are rendered in Western digits (`1 2 3`) everywhere. Every number the UI prints goes through `toDisplayDigits()` in `packages/shared`, so switching the whole product to Arabic-Indic is a one-line change.
 
 ---
 

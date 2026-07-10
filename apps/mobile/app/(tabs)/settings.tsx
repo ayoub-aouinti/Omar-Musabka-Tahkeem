@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -42,7 +43,20 @@ export default function SettingsScreen() {
         { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl },
       ]}
     >
-      <Text style={styles.title}>الإعدادات</Text>
+      <View style={styles.brand}>
+        <Image
+          source={require("../../assets/logo-omar.png")}
+          style={styles.brandLogo}
+          accessibilityLabel="شعار جمعية عمر بن الخطاب"
+          resizeMode="cover"
+        />
+        <View style={styles.brandText}>
+          <Text style={styles.title}>الإعدادات</Text>
+          <Text style={styles.brandSubtitle}>
+            الفرع المحلّي عمر بن الخطاب — دار شعبان الفهري
+          </Text>
+        </View>
+      </View>
 
       <View style={styles.card}>
         <Row label="اسم المحكّم" value={user?.name ?? "—"} />
@@ -110,6 +124,22 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, gap: spacing.lg },
   title: { fontSize: 26, fontWeight: "800", color: colors.onSurface },
+  brand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  brandLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  brandText: { flex: 1 },
+  brandSubtitle: { fontSize: 12, color: colors.onSurfaceVariant },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radius.lg,
