@@ -102,6 +102,18 @@ export function useCreateCompetition() {
   });
 }
 
+export function useDeleteCompetition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/competitions/${id}`);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.competitions });
+    },
+  });
+}
+
 /* -------------------------------------------------------------------------- */
 /*                                  Scoring                                    */
 /* -------------------------------------------------------------------------- */

@@ -1,15 +1,18 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toDisplayDigits } from "@tahkeem/shared";
-import { useCompetitions, useJudges } from "../hooks";
+import { useCompetitions, useDeleteCompetition, useJudges } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
 import { apiErrorMessage } from "../lib/api";
 import {
+  Banner,
   Button,
   Card,
   Chip,
   EmptyState,
   ErrorState,
   Icon,
+  Modal,
   Skeleton,
 } from "../components/ui";
 import { STATUS_CHIP, STATUS_LABELS, formatDate } from "../lib/labels";
@@ -43,7 +46,13 @@ function StatCard({
   );
 }
 
-function CompetitionsTable({ items }: { items: CompetitionSummary[] }) {
+function CompetitionsTable({
+  items,
+  onDelete,
+}: {
+  items: CompetitionSummary[];
+  onDelete: (competition: CompetitionSummary) => void;
+}) {
   const navigate = useNavigate();
   const { setSelectedId } = useSelectedCompetition();
 
@@ -58,6 +67,7 @@ function CompetitionsTable({ items }: { items: CompetitionSummary[] }) {
             <th className="px-4 py-3 text-start font-medium">المشاركون</th>
             <th className="px-4 py-3 text-start font-medium">الأصناف</th>
             <th className="px-4 py-3 text-start font-medium">تاريخ البدء</th>
+            <th className="px-4 py-3 text-start font-medium" />
           </tr>
         </thead>
         <tbody>
@@ -90,6 +100,19 @@ function CompetitionsTable({ items }: { items: CompetitionSummary[] }) {
               <td className="px-4 py-3 font-body-md text-sm text-on-surface-variant">
                 {formatDate(c.startDate)}
               </td>
+              <td className="px-4 py-3 text-end">
+                <button
+                  type="button"
+                  aria-label="حذف المسابقة"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete(c);
+                  }}
+                  className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-error-container hover:text-on-error-container"
+                >
+                  <Icon name="delete" className="text-[20px]" />
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -101,11 +124,28 @@ function CompetitionsTable({ items }: { items: CompetitionSummary[] }) {
 export function DashboardPage() {
   const competitions = useCompetitions();
   const judges = useJudges("");
+  const deleteCompetition = useDeleteCompetition();
+  const { selectedId, setSelectedId } = useSelectedCompetition();
+
+  const [toDelete, setToDelete] = useState<CompetitionSummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const totalCandidates =
     competitions.data?.reduce((sum, c) => sum + c._count.candidates, 0) ?? 0;
   const activeCompetitions =
     competitions.data?.filter((c) => c.status === "ACTIVE").length ?? 0;
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleteError(null);
+    try {
+      await deleteCompetition.mutateAsync(toDelete.id);
+      if (selectedId === toDelete.id) setSelectedId(null);
+      setToDelete(null);
+    } catch (err) {
+      setDeleteError(apiErrorMessage(err));
+    }
+  }
 
   return (
     <div className="flex flex-col gap-margin-lg">
@@ -171,9 +211,47 @@ export function DashboardPage() {
             }
           />
         ) : (
-          <CompetitionsTable items={competitions.data} />
+          <CompetitionsTable
+            items={competitions.data}
+            onDelete={(c) => {
+              setDeleteError(null);
+              setToDelete(c);
+            }}
+          />
         )}
       </Card>
+
+      <Modal
+        open={Boolean(toDelete)}
+        onClose={() => setToDelete(null)}
+        title="حذف المسابقة"
+      >
+        <div className="flex flex-col gap-4">
+          {deleteError ? (
+            <Banner tone="error" onDismiss={() => setDeleteError(null)}>
+              {deleteError}
+            </Banner>
+          ) : null}
+          <p className="font-body-md text-sm text-on-surface">
+            سيتم حذف مسابقة «{toDelete?.name}» نهائيًا مع جميع المشاركين
+            والأصناف والأسئلة والنتائج المرتبطة بها. لا يمكن التراجع عن هذا
+            الإجراء.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setToDelete(null)}>
+              إلغاء
+            </Button>
+            <Button
+              variant="danger"
+              icon="delete"
+              loading={deleteCompetition.isPending}
+              onClick={() => void confirmDelete()}
+            >
+              حذف نهائيًا
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
