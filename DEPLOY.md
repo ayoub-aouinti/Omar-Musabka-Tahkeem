@@ -17,11 +17,15 @@ All three read config from environment variables already, so no code changes are
 1. Sign up at render.com (free, no card required for the free tier) and connect your GitHub account.
 2. **New → Blueprint**, pick this repo. Render reads [`render.yaml`](render.yaml) and proposes a free Postgres database (`tahkeem-db`) and a free web service (`tahkeem-api`). Click **Apply**.
 3. First deploy takes a few minutes (installs, builds `packages/shared`, builds the API, runs `prisma migrate deploy`). Watch the logs for `API on http://localhost:.../api`.
-4. Seed the database **once**, from the Render dashboard → `tahkeem-api` → **Shell**:
-   ```bash
-   pnpm --filter @tahkeem/api prisma:seed
-   ```
-   (The seed script is re-runnable, but don't put it in the start command — it would rerun on every restart/wake.)
+4. Seed the database **once**. The free plan has no Shell/one-off jobs (that needs the paid Starter tier), so run the seed from your own machine against Render's database instead:
+   - Render dashboard → `tahkeem-db` → **Connect** → copy the **External Database URL**.
+   - Locally, from the repo root (PowerShell):
+     ```powershell
+     $env:DATABASE_URL="<the external URL you copied>"
+     pnpm --filter @tahkeem/api prisma:seed
+     ```
+     (bash: `DATABASE_URL="<url>" pnpm --filter @tahkeem/api prisma:seed`)
+   - This talks to the same Postgres your Render API uses, it just runs the script locally. The seed script is re-runnable if you need to redo it later — just don't put it in the API's start command, since that would rerun it on every restart/wake.
 5. Note the service URL Render gives you, e.g. `https://tahkeem-api.onrender.com`. The API lives at `https://tahkeem-api.onrender.com/api`, docs at `/api/docs`.
 6. Grab the generated `SEED_ADMIN_PASSWORD` from the service's **Environment** tab — that's the demo admin login (email `admin@omar-quran.tn`).
 

@@ -4,7 +4,10 @@
     "slug": "tahkeem",
     "scheme": "tahkeem",
     "version": "1.0.0",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -14,7 +17,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#006b33"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.tahkeem.judge",
@@ -27,7 +32,13 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#006b33"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -41,6 +52,19 @@
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "496e8f12-2042-44db-b1c7-0525c515b071"
+      }
+    },
+    "owner": "barakodeayo",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/496e8f12-2042-44db-b1c7-0525c515b071"
     }
   }
 }
