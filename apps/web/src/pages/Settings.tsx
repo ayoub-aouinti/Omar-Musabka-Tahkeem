@@ -75,6 +75,7 @@ export function SettingsPage() {
     null,
   );
   const [hifzBase, setHifzBase] = useState(60);
+  const [total, setTotal] = useState(60);
   const [directs, setDirects] = useState<DirectDraft[]>([]);
   const [penalties, setPenalties] = useState<PenaltyDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -87,36 +88,41 @@ export function SettingsPage() {
     if (!data) return;
     const penalty = data.criteria.find((c) => c.kind === "PENALTY") ?? null;
     setPenaltyCriterion(penalty);
-    setHifzBase(penalty?.maxPoints ?? 60);
-    setDirects(
-      data.criteria
-        .filter((c) => c.kind === "DIRECT")
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((c) => ({
-          key: c.key,
-          labelAr: c.labelAr,
-          descriptionAr: c.descriptionAr,
-          maxPoints: c.maxPoints,
-          sortOrder: c.sortOrder,
-          scales: (c.scales ?? [])
-            .slice()
-            .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map((s) => ({
-              labelAr: s.labelAr,
-              minHizb: s.minHizb,
-              maxHizb: s.maxHizb,
-              maxPoints: s.maxPoints,
-              bands: (s.bands ?? [])
-                .slice()
-                .sort((a, b) => a.sortOrder - b.sortOrder)
-                .map((b) => ({
-                  minPoints: b.minPoints,
-                  maxPoints: b.maxPoints,
-                  descriptionAr: b.descriptionAr ?? "",
-                })),
-            })),
-        })),
+    const nextHifzBase = penalty?.maxPoints ?? 60;
+    setHifzBase(nextHifzBase);
+    const directList = data.criteria
+      .filter((c) => c.kind === "DIRECT")
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((c) => ({
+        key: c.key,
+        labelAr: c.labelAr,
+        descriptionAr: c.descriptionAr,
+        maxPoints: c.maxPoints,
+        sortOrder: c.sortOrder,
+        scales: (c.scales ?? [])
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((s) => ({
+            labelAr: s.labelAr,
+            minHizb: s.minHizb,
+            maxHizb: s.maxHizb,
+            maxPoints: s.maxPoints,
+            bands: (s.bands ?? [])
+              .slice()
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((b) => ({
+                minPoints: b.minPoints,
+                maxPoints: b.maxPoints,
+                descriptionAr: b.descriptionAr ?? "",
+              })),
+          })),
+      }));
+    setDirects(directList);
+    const nextDirectTotal = directList.reduce(
+      (sum, d) => sum + (Number(d.maxPoints) || 0),
+      0,
     );
+    setTotal(round2(nextHifzBase + nextDirectTotal));
     setPenalties(
       PENALTY_ORDER.map((kind) => {
         const rule = data.penaltyRules.find((r) => r.kind === kind);
@@ -133,12 +139,31 @@ export function SettingsPage() {
     () => directs.reduce((sum, d) => sum + (Number(d.maxPoints) || 0), 0),
     [directs],
   );
-  const grandTotal = round2(hifzBase + directTotal);
 
+  // Keeps hifzBase, the general-criteria sum, and the global total in sync:
+  // editing one of the other two recomputes hifzBase so total stays fixed.
   function updateDirect(index: number, patch: Partial<DirectDraft>) {
-    setDirects((list) =>
-      list.map((d, i) => (i === index ? { ...d, ...patch } : d)),
-    );
+    setDirects((list) => {
+      const next = list.map((d, i) => (i === index ? { ...d, ...patch } : d));
+      if (patch.maxPoints !== undefined) {
+        const nextDirectTotal = next.reduce(
+          (sum, d) => sum + (Number(d.maxPoints) || 0),
+          0,
+        );
+        setHifzBase(round2(Math.max(0, total - nextDirectTotal)));
+      }
+      return next;
+    });
+  }
+
+  function handleHifzBaseChange(value: number) {
+    setHifzBase(value);
+    setTotal(round2(value + directTotal));
+  }
+
+  function handleTotalChange(value: number) {
+    setTotal(value);
+    setHifzBase(round2(Math.max(0, value - directTotal)));
   }
 
   function mutateScales(
@@ -339,7 +364,7 @@ export function SettingsPage() {
                 step="0.5"
                 disabled={locked}
                 value={hifzBase}
-                onChange={(e) => setHifzBase(Number(e.target.value))}
+                onChange={(e) => handleHifzBaseChange(Number(e.target.value))}
                 className="w-28"
               />
               <span className="font-body-md text-sm text-on-surface-variant">
@@ -669,15 +694,23 @@ export function SettingsPage() {
                 </span>
               </div>
               <div className="my-2 border-t border-outline-variant" />
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="font-medium text-on-surface">الإجمالي</span>
-                <span
-                  className="font-headline-md text-2xl text-primary"
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  disabled={locked}
+                  value={total}
+                  onChange={(e) => handleTotalChange(Number(e.target.value))}
+                  className="w-24 text-left font-headline-md text-lg text-primary"
                   dir="ltr"
-                >
-                  {grandTotal}
-                </span>
+                />
               </div>
+              <p className="font-body-md text-xs text-on-surface-variant">
+                تعديل الإجمالي أو المعايير العامّة يُحدّث أساس الحفظ تلقائيًا
+                للحفاظ على الدرجة الكلّية.
+              </p>
             </div>
 
             <Button

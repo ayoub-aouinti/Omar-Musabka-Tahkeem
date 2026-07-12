@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
-    "doctor": "expo-doctor"
+    "doctor": "expo-doctor",
+    "eas-build-post-install": "cd ../../packages/shared && pnpm build"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.0",
+    "babel-preset-expo": "~54.0.11",
     "typescript": "~5.9.2"
   }
 }
