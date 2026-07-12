@@ -53,32 +53,15 @@ export class JudgingService {
   }
 
   /**
-   * Candidates this judge may evaluate. Direct assignment overrides the category
-   * seat: a candidate the judge is explicitly assigned to is always included;
-   * a candidate with NO explicit judge is included when the judge sits on their
-   * category; a candidate assigned to *other* judges is excluded.
+   * Candidates this judge may evaluate: only those explicitly assigned to them
+   * via CandidateJudge. The category seat governs which categories a judge may
+   * be assigned candidates from, not visibility on its own.
    */
   async myCandidates(judgeId: string, competitionId: string) {
-    const seats = await this.prisma.categoryJudge.findMany({
-      where: { judgeId, category: { competitionId } },
-      select: { categoryId: true },
-    });
-    const seatedCategoryIds = seats.map((s) => s.categoryId);
-
     return this.prisma.candidate.findMany({
       where: {
         competitionId,
-        OR: [
-          // Explicitly assigned to me.
-          { judges: { some: { judgeId } } },
-          // Or open (no explicit judge) and I sit on the category.
-          seatedCategoryIds.length
-            ? {
-                categoryId: { in: seatedCategoryIds },
-                judges: { none: {} },
-              }
-            : { id: "__never__" },
-        ],
+        judges: { some: { judgeId } },
       },
       orderBy: { externalId: "asc" },
       include: {
@@ -102,7 +85,7 @@ export class JudgingService {
     });
     if (!candidate) throw new NotFoundException("المتسابق غير موجود");
 
-    await this.assertMayJudge(judgeId, candidate.id, candidate.categoryId);
+    await this.assertMayJudge(judgeId, candidate.id);
 
     let questions = await this.questions.listForCandidate(candidateId);
     if (!questions.length) {
@@ -412,35 +395,13 @@ export class JudgingService {
       .sort((a, b) => b.averageScore - a.averageScore);
   }
 
-  /**
-   * A judge may score a candidate if directly assigned to them; failing that, if
-   * the candidate has no direct judges and the judge sits on their category. A
-   * candidate assigned to other judges is off-limits.
-   */
-  private async assertMayJudge(
-    judgeId: string,
-    candidateId: string,
-    categoryId: string,
-  ) {
-    const directCount = await this.prisma.candidateJudge.count({
-      where: { candidateId },
+  /** A judge may score a candidate only if explicitly assigned to them. */
+  private async assertMayJudge(judgeId: string, candidateId: string) {
+    const mine = await this.prisma.candidateJudge.findUnique({
+      where: { candidateId_judgeId: { candidateId, judgeId } },
     });
-
-    if (directCount > 0) {
-      const mine = await this.prisma.candidateJudge.findUnique({
-        where: { candidateId_judgeId: { candidateId, judgeId } },
-      });
-      if (!mine) {
-        throw new ForbiddenException("هذا المتسابق مُسنَد إلى محكّمين آخرين");
-      }
-      return;
-    }
-
-    const seat = await this.prisma.categoryJudge.findUnique({
-      where: { categoryId_judgeId: { categoryId, judgeId } },
-    });
-    if (!seat) {
-      throw new ForbiddenException("لست معيّنًا للتحكيم في هذا الصنف");
+    if (!mine) {
+      throw new ForbiddenException("هذا المتسابق غير مُسنَد إليك");
     }
   }
 }
