@@ -13,7 +13,7 @@ services:
     region: frankfurt
     branch: main
     buildCommand: >-
-      corepack enable &&
+      npm install -g pnpm@9.12.0 &&
       pnpm install --frozen-lockfile &&
       pnpm shared:build &&
       pnpm --filter @tahkeem/api prisma:generate &&
