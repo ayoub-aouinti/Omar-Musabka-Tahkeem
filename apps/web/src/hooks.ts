@@ -8,8 +8,11 @@ import { api } from "./lib/api";
 import type {
   AccessGrant,
   AccessSessionWithJudge,
+  AssignJudgeResult,
+  BankQuestion,
   CandidateCreate,
   CandidateDetail,
+  CandidateJudge,
   CandidateList,
   CandidateQuestion,
   CandidateUpdate,
@@ -22,7 +25,12 @@ import type {
   JudgeCreate,
   JudgeStats,
   JudgeUpdate,
+  QuestionBankResult,
+  QuestionCreate,
+  QuestionPassage,
+  QuestionUpdate,
   QuranScopeResult,
+  QuranVerse,
   ResultRow,
   ScoringConfig,
   ScoringUpdate,
@@ -45,6 +53,13 @@ export const qk = {
     ["judges", "access", competitionId] as const,
   candidateQuestions: (candidateId: string) =>
     ["questions", "candidate", candidateId] as const,
+  questionBank: (params: QuestionBankFilters) =>
+    ["questions", "bank", params] as const,
+  questionPassage: (id: string) => ["questions", id, "passage"] as const,
+  verses: (start: number, end: number) =>
+    ["quran", "verses", start, end] as const,
+  candidateJudges: (candidateId: string) =>
+    ["candidates", candidateId, "judges"] as const,
   results: (competitionId: string, categoryId: string) =>
     ["results", competitionId, categoryId] as const,
 };
@@ -305,6 +320,176 @@ export function useScopePreview(
       return res.data;
     },
     ...options,
+  });
+}
+
+/** Resolve an inclusive verse slice, e.g. to map a surah+ayah to a verse id. */
+export function useQuranVerses(
+  start: number | undefined,
+  end: number | undefined,
+) {
+  return useQuery({
+    queryKey: qk.verses(start ?? 0, end ?? 0),
+    enabled: Boolean(start && end),
+    staleTime: Infinity,
+    queryFn: async () => {
+      const res = await api.get<QuranVerse[]>("/quran/verses", {
+        params: { start, end },
+      });
+      return res.data;
+    },
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               Question bank                                */
+/* -------------------------------------------------------------------------- */
+
+export interface QuestionBankFilters {
+  competitionId?: string;
+  categoryId?: string;
+  candidateId?: string;
+  difficulty?: string;
+  source?: string;
+  take: number;
+  skip: number;
+}
+
+export function useQuestionBank(filters: QuestionBankFilters, enabled = true) {
+  return useQuery({
+    queryKey: qk.questionBank(filters),
+    enabled,
+    queryFn: async () => {
+      const params: Record<string, string | number> = {
+        take: filters.take,
+        skip: filters.skip,
+      };
+      if (filters.competitionId) params.competitionId = filters.competitionId;
+      if (filters.categoryId) params.categoryId = filters.categoryId;
+      if (filters.candidateId) params.candidateId = filters.candidateId;
+      if (filters.difficulty) params.difficulty = filters.difficulty;
+      if (filters.source) params.source = filters.source;
+      const res = await api.get<QuestionBankResult>("/questions/bank", {
+        params,
+      });
+      return res.data;
+    },
+  });
+}
+
+export function useQuestionPassage(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.questionPassage(id ?? ""),
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const res = await api.get<QuestionPassage>(`/questions/${id}/passage`);
+      return res.data;
+    },
+  });
+}
+
+export function useCreateQuestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: QuestionCreate) => {
+      const res = await api.post<BankQuestion>("/questions", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["questions"] });
+    },
+  });
+}
+
+export function useUpdateQuestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: QuestionUpdate;
+    }) => {
+      const res = await api.patch<BankQuestion>(`/questions/${id}`, payload);
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: ["questions"] });
+      void qc.invalidateQueries({
+        queryKey: qk.questionPassage(variables.id),
+      });
+    },
+  });
+}
+
+export function useDeleteQuestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/questions/${id}`);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["questions"] });
+    },
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*                        Judge ↔ candidate assignment                        */
+/* -------------------------------------------------------------------------- */
+
+export function useCandidateJudges(candidateId: string | undefined) {
+  return useQuery({
+    queryKey: qk.candidateJudges(candidateId ?? ""),
+    enabled: Boolean(candidateId),
+    queryFn: async () => {
+      const res = await api.get<CandidateJudge[]>(
+        `/candidates/${candidateId}/judges`,
+      );
+      return res.data;
+    },
+  });
+}
+
+export function useSetCandidateJudges(candidateId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (judgeIds: string[]) => {
+      const res = await api.post<CandidateJudge[]>(
+        `/candidates/${candidateId}/judges`,
+        { judgeIds },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: qk.candidateJudges(candidateId),
+      });
+      void qc.invalidateQueries({ queryKey: ["candidates"] });
+    },
+  });
+}
+
+export function useBulkAssignJudge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      judgeId,
+      candidateIds,
+    }: {
+      judgeId: string;
+      candidateIds: string[];
+    }) => {
+      const res = await api.post<AssignJudgeResult>(
+        "/candidates/assign-judge",
+        { judgeId, candidateIds },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["candidates"] });
+    },
   });
 }
 

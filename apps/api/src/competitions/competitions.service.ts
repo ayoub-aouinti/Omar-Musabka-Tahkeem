@@ -6,6 +6,7 @@ import {
   type PenaltyWeights,
 } from "@tahkeem/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { TAJWEED_CRITERIA } from "./tajweed-criteria";
 import type {
   CreateCompetitionDto,
   UpdateCompetitionDto,
@@ -17,24 +18,22 @@ const DEFAULT_CRITERIA = [
   {
     key: "hifz",
     labelAr: "الحفظ",
+    descriptionAr: undefined as string | undefined,
     kind: CriterionKind.PENALTY,
     maxPoints: DEFAULT_HIFZ_BASE,
     sortOrder: 0,
+    scales: [] as [],
   },
-  {
-    key: "tajweed",
-    labelAr: "التجويد",
+  // The 2025 tajweed rubric — each criterion with its per-category scales.
+  ...TAJWEED_CRITERIA.map((c, i) => ({
+    key: c.key,
+    labelAr: c.labelAr,
+    descriptionAr: c.descriptionAr,
     kind: CriterionKind.DIRECT,
-    maxPoints: 30,
-    sortOrder: 1,
-  },
-  {
-    key: "adaa",
-    labelAr: "الأداء والصوت",
-    kind: CriterionKind.DIRECT,
-    maxPoints: 10,
-    sortOrder: 2,
-  },
+    maxPoints: c.maxPoints,
+    sortOrder: i + 1,
+    scales: c.scales,
+  })),
 ];
 
 const DEFAULT_PENALTY_RULES = [
@@ -60,7 +59,15 @@ export class CompetitionsService {
     const competition = await this.prisma.competition.findUnique({
       where: { id },
       include: {
-        criteria: { orderBy: { sortOrder: "asc" } },
+        criteria: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            scales: {
+              orderBy: { sortOrder: "asc" },
+              include: { bands: { orderBy: { sortOrder: "asc" } } },
+            },
+          },
+        },
         penaltyRules: true,
         categories: {
           orderBy: { hizbCount: "asc" },
@@ -74,13 +81,39 @@ export class CompetitionsService {
   }
 
   create(dto: CreateCompetitionDto) {
+    const criteria = (dto.criteria ?? DEFAULT_CRITERIA).map((c, i) => ({
+      key: c.key,
+      labelAr: c.labelAr,
+      descriptionAr: "descriptionAr" in c ? c.descriptionAr : undefined,
+      kind: c.kind,
+      maxPoints: c.maxPoints,
+      sortOrder: c.sortOrder ?? i,
+      scales: {
+        create: ("scales" in c ? (c.scales ?? []) : []).map((s, si) => ({
+          labelAr: s.labelAr,
+          minHizb: s.minHizb,
+          maxHizb: s.maxHizb,
+          maxPoints: s.maxPoints,
+          sortOrder: si,
+          bands: {
+            create: (s.bands ?? []).map((b, bi) => ({
+              minPoints: b.minPoints,
+              maxPoints: b.maxPoints,
+              descriptionAr: b.descriptionAr,
+              sortOrder: bi,
+            })),
+          },
+        })),
+      },
+    }));
+
     return this.prisma.competition.create({
       data: {
         name: dto.name,
         location: dto.location,
         startDate: dto.startDate ? new Date(dto.startDate) : null,
         endDate: dto.endDate ? new Date(dto.endDate) : null,
-        criteria: { create: dto.criteria ?? DEFAULT_CRITERIA },
+        criteria: { create: criteria },
         penaltyRules: { create: dto.penaltyRules ?? DEFAULT_PENALTY_RULES },
       },
       include: { criteria: true, penaltyRules: true },
@@ -131,30 +164,99 @@ export class CompetitionsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Deleting the criteria cascades their scales and bands.
       await tx.criterion.deleteMany({ where: { competitionId: id } });
       await tx.penaltyRule.deleteMany({ where: { competitionId: id } });
-      await tx.criterion.createMany({
-        data: dto.criteria.map((c) => ({ ...c, competitionId: id })),
-      });
+
+      // Nested create so each criterion's scales and bands land in one write.
+      for (const [i, c] of dto.criteria.entries()) {
+        await tx.criterion.create({
+          data: {
+            competitionId: id,
+            key: c.key,
+            labelAr: c.labelAr,
+            descriptionAr: c.descriptionAr,
+            kind: c.kind,
+            maxPoints: c.maxPoints,
+            sortOrder: c.sortOrder ?? i,
+            scales: {
+              create: (c.scales ?? []).map((s, si) => ({
+                labelAr: s.labelAr,
+                minHizb: s.minHizb,
+                maxHizb: s.maxHizb,
+                maxPoints: s.maxPoints,
+                sortOrder: si,
+                bands: {
+                  create: (s.bands ?? []).map((b, bi) => ({
+                    minPoints: b.minPoints,
+                    maxPoints: b.maxPoints,
+                    descriptionAr: b.descriptionAr,
+                    sortOrder: bi,
+                  })),
+                },
+              })),
+            },
+          },
+        });
+      }
+
       await tx.penaltyRule.createMany({
         data: dto.penaltyRules.map((r) => ({ ...r, competitionId: id })),
       });
+
       return tx.competition.findUnique({
         where: { id },
-        include: { criteria: { orderBy: { sortOrder: "asc" } }, penaltyRules: true },
+        include: {
+          criteria: {
+            orderBy: { sortOrder: "asc" },
+            include: {
+              scales: {
+                orderBy: { sortOrder: "asc" },
+                include: { bands: { orderBy: { sortOrder: "asc" } } },
+              },
+            },
+          },
+          penaltyRules: true,
+        },
       });
     });
   }
 
-  /** The hifz base and penalty weights, as the scoring engine wants them. */
-  async getScoringConfig(competitionId: string): Promise<{
+  /**
+   * The hifz base, penalty weights and general criteria, ready for the scoring
+   * engine. When `hizbCount` is given, each general criterion's ceiling and
+   * guidance bands are resolved to the scale matching that category — the 2025
+   * rubric scores التجويد differently for «دون 30 حزبًا» and «30 فما فوق».
+   */
+  async getScoringConfig(
+    competitionId: string,
+    hizbCount?: number,
+  ): Promise<{
     hifzBase: number;
     weights: PenaltyWeights;
-    directCriteria: Array<{ id: string; key: string; labelAr: string; maxPoints: number }>;
+    directCriteria: Array<{
+      id: string;
+      key: string;
+      labelAr: string;
+      maxPoints: number;
+      scaleLabelAr: string | null;
+      bands: Array<{ minPoints: number; maxPoints: number; descriptionAr: string }>;
+    }>;
   }> {
     const competition = await this.prisma.competition.findUnique({
       where: { id: competitionId },
-      include: { criteria: { orderBy: { sortOrder: "asc" } }, penaltyRules: true },
+      include: {
+        penaltyRules: true,
+        criteria: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            scales: {
+              orderBy: { sortOrder: "asc" },
+              include: { bands: { orderBy: { sortOrder: "asc" } } },
+            },
+          },
+        },
+      },
     });
     if (!competition) throw new NotFoundException("المسابقة غير موجودة");
 
@@ -175,7 +277,26 @@ export class CompetitionsService {
       },
       directCriteria: competition.criteria
         .filter((c) => c.kind === CriterionKind.DIRECT)
-        .map(({ id, key, labelAr, maxPoints }) => ({ id, key, labelAr, maxPoints })),
+        .map((criterion) => {
+          const scale =
+            hizbCount == null
+              ? null
+              : (criterion.scales.find(
+                  (s) => hizbCount >= s.minHizb && hizbCount <= s.maxHizb,
+                ) ?? null);
+          return {
+            id: criterion.id,
+            key: criterion.key,
+            labelAr: criterion.labelAr,
+            maxPoints: scale?.maxPoints ?? criterion.maxPoints,
+            scaleLabelAr: scale?.labelAr ?? null,
+            bands: (scale?.bands ?? []).map((b) => ({
+              minPoints: b.minPoints,
+              maxPoints: b.maxPoints,
+              descriptionAr: b.descriptionAr,
+            })),
+          };
+        }),
     };
   }
 

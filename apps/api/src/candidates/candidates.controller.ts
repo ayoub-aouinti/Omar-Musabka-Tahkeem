@@ -12,7 +12,13 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { UserRole } from "@prisma/client";
 import { Roles } from "../common/decorators";
 import { CandidatesService } from "./candidates.service";
-import { CreateCandidateDto, ListCandidatesDto, UpdateCandidateDto } from "./dto";
+import {
+  AssignJudgeDto,
+  CreateCandidateDto,
+  ListCandidatesDto,
+  SetJudgesDto,
+  UpdateCandidateDto,
+} from "./dto";
 
 @ApiTags("candidates")
 @Controller("candidates")
@@ -47,5 +53,25 @@ export class CandidatesController {
   @Delete(":id")
   remove(@Param("id") id: string) {
     return this.candidates.remove(id);
+  }
+
+  @Get(":id/judges")
+  @ApiOperation({ summary: "المحكّمون المُسنَدون مباشرةً إلى المتسابق" })
+  judges(@Param("id") id: string) {
+    return this.candidates.listJudges(id);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post(":id/judges")
+  @ApiOperation({ summary: "تعيين محكّمي المتسابق (قائمة فارغة تُعيده لصنفه)" })
+  setJudges(@Param("id") id: string, @Body() dto: SetJudgesDto) {
+    return this.candidates.setJudges(id, dto.judgeIds);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post("assign-judge")
+  @ApiOperation({ summary: "إسناد محكّم إلى مجموعة من المتسابقين دفعةً واحدة" })
+  assignJudge(@Body() dto: AssignJudgeDto) {
+    return this.candidates.assignJudgeToCandidates(dto.judgeId, dto.candidateIds);
   }
 }

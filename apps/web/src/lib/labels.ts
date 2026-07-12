@@ -2,8 +2,10 @@ import { toDisplayDigits } from "@tahkeem/shared";
 import type {
   AmountUnit,
   CompetitionStatus,
+  Difficulty,
   Gender,
   JudgingStatus,
+  QuestionSource,
 } from "../types";
 
 export const GENDER_LABELS: Record<Gender, string> = {
@@ -48,6 +50,29 @@ export const AMOUNT_UNITS: AmountUnit[] = [
   "thumn_hizb",
   "rub_hizb",
 ];
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  EASY: "سهل",
+  MEDIUM: "متوسط",
+  HARD: "صعب",
+};
+
+export const DIFFICULTIES: Difficulty[] = ["EASY", "MEDIUM", "HARD"];
+
+/** Tailwind classes for a difficulty chip: green-ish / neutral / red-ish. */
+export const DIFFICULTY_CHIP: Record<Difficulty, string> = {
+  EASY: "bg-primary-container text-on-primary",
+  MEDIUM: "bg-surface-container-highest text-on-surface-variant",
+  HARD: "bg-error-container text-on-error-container",
+};
+
+export const SOURCE_LABELS: Record<QuestionSource, string> = {
+  AUTO: "تلقائي",
+  MANUAL: "يدوي",
+  IMPORTED: "مستورد",
+};
+
+export const SOURCES: QuestionSource[] = ["AUTO", "MANUAL", "IMPORTED"];
 
 /** Format a "quantity + unit" the way the workbook reads it, in Arabic digits. */
 export function formatAmount(value: number, unit: AmountUnit): string {

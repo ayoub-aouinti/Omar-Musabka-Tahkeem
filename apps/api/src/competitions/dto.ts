@@ -12,6 +12,25 @@ import {
 } from "class-validator";
 import { CompetitionStatus, CriterionKind, PenaltyKind } from "@prisma/client";
 
+export class BandDto {
+  @IsNumber() @Min(0) minPoints!: number;
+  @IsNumber() @Min(0) maxPoints!: number;
+  @IsString() descriptionAr!: string;
+}
+
+export class ScaleDto {
+  @IsString() labelAr!: string;
+  @IsInt() @Min(1) minHizb!: number;
+  @IsInt() @Min(1) maxHizb!: number;
+  @IsNumber() @Min(0) maxPoints!: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BandDto)
+  bands?: BandDto[];
+}
+
 export class CriterionDto {
   @IsString() key!: string;
   @IsString() labelAr!: string;
@@ -19,6 +38,13 @@ export class CriterionDto {
   @IsEnum(CriterionKind) kind!: CriterionKind;
   @IsNumber() @Min(0) maxPoints!: number;
   @IsOptional() @IsInt() sortOrder?: number;
+
+  /** Per-category scales (with descriptive bands). Optional. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScaleDto)
+  scales?: ScaleDto[];
 }
 
 export class PenaltyRuleDto {

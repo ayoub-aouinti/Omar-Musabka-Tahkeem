@@ -86,22 +86,34 @@ export const FinalSheet = forwardRef<BottomSheetModal, FinalSheetProps>(
             {scoring.directCriteria.map((criterion: DirectCriterion) => {
               const value = criteriaValues[criterion.id] ?? 0;
               const unset = criteriaValues[criterion.id] == null;
+              // The band the current value falls in — the guidance to surface.
+              const activeBand = criterion.bands.find(
+                (b) => value >= b.minPoints && value <= b.maxPoints,
+              );
               return (
-                <View key={criterion.id} style={styles.row}>
-                  <View style={styles.labelCol}>
-                    <Text style={styles.label}>{criterion.labelAr}</Text>
-                    <Text style={styles.sub}>
-                      {unset ? "لم تُقيَّم بعد" : formatScore(value)} /{" "}
-                      {toDisplayDigits(criterion.maxPoints)}
-                    </Text>
+                <View key={criterion.id} style={styles.criterion}>
+                  <View style={styles.row}>
+                    <View style={styles.labelCol}>
+                      <Text style={styles.label}>{criterion.labelAr}</Text>
+                      <Text style={styles.sub}>
+                        {unset ? "لم تُقيَّم بعد" : formatScore(value)} /{" "}
+                        {toDisplayDigits(criterion.maxPoints)}
+                        {criterion.scaleLabelAr
+                          ? `  ·  ${criterion.scaleLabelAr}`
+                          : ""}
+                      </Text>
+                    </View>
+                    <Stepper
+                      value={value}
+                      onChange={(v) => onCriterion(criterion.id, v)}
+                      min={0}
+                      max={criterion.maxPoints}
+                      disabled={readOnly}
+                    />
                   </View>
-                  <Stepper
-                    value={value}
-                    onChange={(v) => onCriterion(criterion.id, v)}
-                    min={0}
-                    max={criterion.maxPoints}
-                    disabled={readOnly}
-                  />
+                  {activeBand ? (
+                    <Text style={styles.bandText}>{activeBand.descriptionAr}</Text>
+                  ) : null}
                 </View>
               );
             })}
@@ -184,12 +196,22 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
+  criterion: { gap: spacing.xs },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     minHeight: MIN_TOUCH,
     gap: spacing.md,
+  },
+  bandText: {
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+    textAlign: "right",
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   labelCol: { flex: 1, gap: 2 },
   label: { fontSize: 17, fontWeight: "700", color: colors.onSurface, textAlign: "right" },

@@ -54,6 +54,7 @@ model Judge {
   accessSessions  JudgeAccess[]
   judgingSessions JudgingSession[]
   assignments     CategoryJudge[]
+  candidates      CandidateJudge[]
 
   @@index([fullName])
   @@map("judges")
@@ -157,6 +158,11 @@ enum CriterionKind {
 
 /// One scoring dimension of a competition. Exactly one PENALTY criterion is
 /// expected; its `maxPoints` is the hifz base (60 in the 2026 workbook).
+///
+/// `maxPoints` is the default ceiling. A criterion may instead carry `scales`,
+/// one per band of أحزاب — the branch's 2025 rules score التجويد differently for
+/// «دون 30 حزبًا» and «30 فما فوق». When a scale matches the candidate's
+/// category it wins; otherwise `maxPoints` applies.
 model Criterion {
   id            String        @id @default(cuid())
   competitionId String
@@ -169,9 +175,46 @@ model Criterion {
 
   competition Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   scores      CriterionScore[]
+  scales      CriterionScale[]
 
   @@unique([competitionId, key])
   @@map("criteria")
+}
+
+/// The ceiling this criterion carries for a band of categories, e.g. «الأصناف
+/// دون 30 حزبًا» → 10 points, «30 حزبًا فما فوق» → 8. Matched on the candidate's
+/// `Category.hizbCount` falling in [minHizb, maxHizb].
+model CriterionScale {
+  id          String @id @default(cuid())
+  criterionId String
+  labelAr     String
+  minHizb     Int
+  maxHizb     Int
+  maxPoints   Float
+  sortOrder   Int    @default(0)
+
+  criterion Criterion       @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  bands     CriterionBand[]
+
+  @@index([criterionId])
+  @@map("criterion_scales")
+}
+
+/// A descriptive level inside a scale — the guidance a judge reads before
+/// choosing a number, e.g. 8–10 «إتيان الطالب على جميع مواضع الغنن والمدود مع
+/// احترام الأزمنة». Guidance only: it never constrains the value.
+model CriterionBand {
+  id            String @id @default(cuid())
+  scaleId       String
+  minPoints     Float
+  maxPoints     Float
+  descriptionAr String
+  sortOrder     Int    @default(0)
+
+  scale CriterionScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+
+  @@index([scaleId])
+  @@map("criterion_bands")
 }
 
 enum PenaltyKind {
@@ -208,7 +251,7 @@ model Category {
 
   /// How many questions a candidate in this class is asked. Drives the value of
   /// a cancelled question: hifzBase / questionCount.
-  questionCount Int @default(4)
+  questionCount Int    @default(4)
   /// Size of one drawn passage: `amountValue` × `amountUnit`.
   amountUnit    String @default("wajh")
   amountValue   Int    @default(1)
@@ -222,7 +265,7 @@ model Category {
   @@map("categories")
 }
 
-/// Which judges sit on which class.
+/// Which judges sit on which class — the broad default.
 model CategoryJudge {
   categoryId String
   judgeId    String
@@ -235,6 +278,25 @@ model CategoryJudge {
   @@map("category_judges")
 }
 
+/// A judge assigned to a specific candidate. Many-to-many: a judge takes a group
+/// of candidates, and a candidate may be heard by several judges.
+///
+/// A direct assignment OVERRIDES the category seat: once a candidate has any
+/// explicit judge, only those judges see and score them. A candidate with no
+/// explicit judge stays open to everyone seated on their category.
+model CandidateJudge {
+  candidateId String
+  judgeId     String
+  assignedAt  DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  judge     Judge     @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@id([candidateId, judgeId])
+  @@index([judgeId])
+  @@map("candidate_judges")
+}
+
 enum ScopeKind {
   FULL
   SURA
@@ -242,7 +304,7 @@ enum ScopeKind {
 }
 
 model Candidate {
-  id            String  @id @default(cuid())
+  id            String    @id @default(cuid())
   competitionId String
   categoryId    String
   /// The `المعرّف` column of the workbook — the branch's own numbering.
@@ -254,13 +316,13 @@ model Candidate {
   teacherName   String?
 
   /// The raw `السّور المشارك بها` text, kept verbatim for audit.
-  scopeRaw       String
-  scopeKind      ScopeKind
+  scopeRaw          String
+  scopeKind         ScopeKind
   /// The parsed range, in QuranVerse.id. Inclusive on both ends.
   scopeStartVerseId Int
   scopeEndVerseId   Int
   /// True when the candidate wrote the range end-first (memorises backwards).
-  scopeReversed     Boolean @default(false)
+  scopeReversed     Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -269,6 +331,7 @@ model Candidate {
   category        Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   questions       Question[]
   judgingSessions JudgingSession[]
+  judges          CandidateJudge[]
 
   @@unique([competitionId, externalId])
   @@index([competitionId, categoryId])
@@ -284,18 +347,26 @@ enum QuestionSource {
   IMPORTED
 }
 
+/// درجة الصعوبة — set by hand in بنك الأسئلة; auto-drawn questions start MEDIUM.
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
 /// A drawn passage: start reciting at `startVerse`, for `amountValue` ×
 /// `amountUnit`. `endVerseId` is resolved and cached when the question is made.
 ///
 /// A question belongs to a candidate when drawn for them individually, or to a
 /// category when it is a shared bank question.
 model Question {
-  id            String         @id @default(cuid())
+  id            String             @id @default(cuid())
   competitionId String
   categoryId    String?
   candidateId   String?
-  source        QuestionSource @default(AUTO)
-  sortOrder     Int            @default(0)
+  source        QuestionSource     @default(AUTO)
+  difficulty    QuestionDifficulty @default(MEDIUM)
+  sortOrder     Int                @default(0)
 
   startVerseId Int
   endVerseId   Int
@@ -303,6 +374,7 @@ model Question {
   amountValue  Int
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   competition Competition      @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   category    Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -362,7 +434,7 @@ model JudgingSession {
 /// The judge's tally for one question. These four counters are the only inputs
 /// to the hifz score.
 model QuestionResult {
-  id               String  @id @default(cuid())
+  id               String @id @default(cuid())
   judgingSessionId String
   questionId       String
 

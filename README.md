@@ -30,6 +30,27 @@ A question is worth `hifzBase ÷ questionCount` (60 ÷ 4 = 15 by default), so ca
 
 The base (60) and the three weights live in the database per competition and are editable in **الإعدادات**. Additional criteria the judge rates directly — `التجويد` /30 and `الأداء والصوت` /10 — are added on top, giving 100. Once any result is submitted the configuration freezes, so a late edit to a weight can never silently rewrite a published score.
 
+### The tajweed rubric (2025), scored by category
+
+The general criteria are the branch's four تجويد dimensions, transcribed from «معايير التقييم — المسابقة المحلية 2025»:
+
+| المعيار | دون 30 حزبًا | 30 فما فوق |
+|---|---|---|
+| الغنن والمدود | /10 | /8 |
+| المخارج والصفات | /16 | /10 |
+| الوقف والابتداء | /5 | /3 |
+| حسن الأداء | /5 | /5 |
+
+Each criterion carries **scales** (one per band of أحزاب) and each scale carries descriptive **bands** — the guidance a judge reads before choosing a number (e.g. 8–10 «إتيان الطالب على جميع مواضع الغنن والمدود مع احترام الأزمنة»). The API resolves the ceiling and bands to the candidate's category, so a judge scoring a «دون 30» reciter sees /16 for المخارج and a «فوق 30» reciter sees /10. Everything — scales, bands, maxima, weights — is editable in **إعدادات التقييم**, and frozen once a result is submitted.
+
+### Assigning judges to candidates
+
+Beyond the category seat, a judge can be assigned to a **specific group of candidates**, and a candidate to **several judges** (`POST /candidates/:id/judges`, or bulk `POST /candidates/assign-judge`). **A direct assignment overrides the category:** once a candidate has any explicit judge, only those judges see and score them; a candidate with none stays open to everyone seated on their category. The dashboard badges candidates that have explicit judges.
+
+### بنك الأسئلة
+
+The dashboard's **بنك الأسئلة** lists every question in a competition — the papers auto-drawn per candidate and the hand-entered ones alike — filterable by category, candidate, difficulty (سهل/متوسط/صعب) and source. A question is editable (start verse, amount, difficulty) and new ones can be added, each shown against the **mushaf page on the left with the passage highlighted in soft grey**, the surah/ayah selection moving the highlight live.
+
 ### خاصّة vs عامّة — how a judge scores
 
 The criteria split in two, and so does the judging flow:

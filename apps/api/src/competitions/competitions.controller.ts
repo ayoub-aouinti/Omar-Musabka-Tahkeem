@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { UserRole } from "@prisma/client";
@@ -36,9 +37,13 @@ export class CompetitionsController {
   }
 
   @Get(":id/scoring")
-  @ApiOperation({ summary: "إعدادات التقييم (الأساس والخصومات)" })
-  scoring(@Param("id") id: string) {
-    return this.competitions.getScoringConfig(id);
+  @ApiOperation({ summary: "إعدادات التقييم؛ hizbCount يحلّ سلالم الأصناف" })
+  scoring(@Param("id") id: string, @Query("hizbCount") hizbCount?: string) {
+    const hc = hizbCount ? Number(hizbCount) : undefined;
+    return this.competitions.getScoringConfig(
+      id,
+      Number.isFinite(hc) ? hc : undefined,
+    );
   }
 
   @Get(":id/categories")

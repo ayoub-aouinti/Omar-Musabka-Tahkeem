@@ -51,6 +51,26 @@ export interface CompetitionSummary {
   _count: CompetitionCounts;
 }
 
+/** A descriptive points band inside a scale (e.g. 8–10 نقاط + وصف). */
+export interface CriterionBand {
+  id: string;
+  minPoints: number;
+  maxPoints: number;
+  descriptionAr: string | null;
+  sortOrder: number;
+}
+
+/** A per-hizb-range scale attached to a DIRECT criterion. */
+export interface CriterionScale {
+  id: string;
+  labelAr: string;
+  minHizb: number;
+  maxHizb: number;
+  maxPoints: number;
+  sortOrder: number;
+  bands: CriterionBand[];
+}
+
 export interface Criterion {
   id: string;
   key: string;
@@ -59,6 +79,7 @@ export interface Criterion {
   kind: CriterionKind;
   maxPoints: number;
   sortOrder: number;
+  scales?: CriterionScale[];
 }
 
 export interface PenaltyRule {
@@ -102,6 +123,20 @@ export interface ScoringConfig {
 }
 
 /** Payload for PUT /competitions/:id/scoring. */
+export interface ScoringBandInput {
+  minPoints: number;
+  maxPoints: number;
+  descriptionAr: string;
+}
+
+export interface ScoringScaleInput {
+  labelAr: string;
+  minHizb: number;
+  maxHizb: number;
+  maxPoints: number;
+  bands?: ScoringBandInput[];
+}
+
 export interface ScoringCriterionInput {
   key: string;
   labelAr: string;
@@ -109,6 +144,7 @@ export interface ScoringCriterionInput {
   kind: CriterionKind;
   maxPoints: number;
   sortOrder?: number;
+  scales?: ScoringScaleInput[];
 }
 
 export interface ScoringPenaltyInput {
@@ -154,6 +190,8 @@ export interface CandidateListItem {
   scopeReversed: boolean;
   category: { id: string; labelAr: string; hizbCount: number };
   judgingSessions: JudgingSessionRef[];
+  /** Present when the candidate has explicit (overriding) judges assigned. */
+  explicitJudgeCount?: number;
 }
 
 export interface CandidateList {
@@ -299,6 +337,40 @@ export interface CategoryGenerateResult {
   failed: Array<{ candidate: string; reason: string }>;
 }
 
+/* --------------------------- Question bank -------------------------------- */
+
+/** Difficulty tiers for a question (Arabic: سهل/متوسط/صعب). */
+export type Difficulty = "EASY" | "MEDIUM" | "HARD";
+
+/** How a question came to exist (Arabic: تلقائي/يدوي/مستورد). */
+export type QuestionSource = "AUTO" | "MANUAL" | "IMPORTED";
+
+export interface BankQuestion {
+  id: string;
+  competitionId: string;
+  categoryId: string | null;
+  candidateId: string | null;
+  source: QuestionSource;
+  difficulty: Difficulty;
+  sortOrder: number;
+  startVerseId: number;
+  endVerseId: number;
+  amountUnit: AmountUnit;
+  amountValue: number;
+  candidate: { id: string; fullName: string; externalId: string | null } | null;
+  category: { id: string; labelAr: string; hizbCount: number } | null;
+  startRef: ScopeEndpoint;
+  endRef: ScopeEndpoint;
+  verseCount: number;
+}
+
+export interface QuestionBankResult {
+  items: BankQuestion[];
+  total: number;
+  take: number;
+  skip: number;
+}
+
 export interface QuestionCreate {
   competitionId: string;
   categoryId?: string;
@@ -306,21 +378,56 @@ export interface QuestionCreate {
   startVerseId: number;
   amountUnit: AmountUnit;
   amountValue: number;
+  difficulty?: Difficulty;
 }
 
+export interface QuestionUpdate {
+  startVerseId?: number;
+  amountUnit?: AmountUnit;
+  amountValue?: number;
+  difficulty?: Difficulty;
+}
+
+/** A single verse within a rendered mushaf page. */
 export interface PassageVerse {
   id: number;
-  ayaText: string;
-  ayaNumber: number;
+  suraNumber: number;
   suraNameAr: string;
+  ayaNumber: number;
+  ayaText: string;
   page: number;
+  jozz: number;
+  hizbNumber: number;
+  highlighted: boolean;
+  startsSurah: boolean;
+}
+
+/** The full mushaf page(s) with the question span flagged. */
+export interface PassagePage {
+  pages: string[];
+  firstPage: number;
+  lastPage: number;
+  verses: PassageVerse[];
 }
 
 export interface QuestionPassage {
   question: CandidateQuestion;
+  page: PassagePage;
   verses: PassageVerse[];
   label: string;
-  pages: number[];
+  pages: string[];
+}
+
+/** A verse row from GET /quran/verses (inclusive slice). */
+export interface QuranVerse {
+  id: number;
+  ayaText: string;
+  ayaNumber: number;
+  suraNameAr: string;
+  suraNumber: number;
+  page: number;
+  jozz: number;
+  hizbNumber: number;
 }
 
 export interface ImportReport {
@@ -335,6 +442,19 @@ export interface ResultRow {
   candidate: { id: string; fullName: string; categoryId: string };
   judgeCount: number;
   averageScore: number;
+}
+
+/* --------------------- Judge ↔ candidate assignment ----------------------- */
+
+/** A judge directly assigned to a candidate (overriding their category). */
+export interface CandidateJudge {
+  id: string;
+  fullName: string;
+  gender: Gender;
+}
+
+export interface AssignJudgeResult {
+  assigned: number;
 }
 
 /** Shape the API uses for validation / auth failures. */

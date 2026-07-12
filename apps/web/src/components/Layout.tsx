@@ -15,6 +15,7 @@ const NAV: NavItem[] = [
   { to: "/", label: "لوحة المعلومات", icon: "dashboard", end: true },
   { to: "/candidates", label: "المشاركون", icon: "groups" },
   { to: "/judges", label: "المحكّمون", icon: "gavel" },
+  { to: "/questions", label: "بنك الأسئلة", icon: "quiz" },
   { to: "/results", label: "النتائج", icon: "leaderboard" },
   { to: "/settings", label: "إعدادات التقييم", icon: "tune" },
 ];

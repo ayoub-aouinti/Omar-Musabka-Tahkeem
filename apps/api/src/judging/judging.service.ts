@@ -52,18 +52,33 @@ export class JudgingService {
     );
   }
 
-  /** Candidates this judge may evaluate: those in the categories they sit on. */
+  /**
+   * Candidates this judge may evaluate. Direct assignment overrides the category
+   * seat: a candidate the judge is explicitly assigned to is always included;
+   * a candidate with NO explicit judge is included when the judge sits on their
+   * category; a candidate assigned to *other* judges is excluded.
+   */
   async myCandidates(judgeId: string, competitionId: string) {
     const seats = await this.prisma.categoryJudge.findMany({
       where: { judgeId, category: { competitionId } },
       select: { categoryId: true },
     });
-    if (!seats.length) return [];
+    const seatedCategoryIds = seats.map((s) => s.categoryId);
 
     return this.prisma.candidate.findMany({
       where: {
         competitionId,
-        categoryId: { in: seats.map((s) => s.categoryId) },
+        OR: [
+          // Explicitly assigned to me.
+          { judges: { some: { judgeId } } },
+          // Or open (no explicit judge) and I sit on the category.
+          seatedCategoryIds.length
+            ? {
+                categoryId: { in: seatedCategoryIds },
+                judges: { none: {} },
+              }
+            : { id: "__never__" },
+        ],
       },
       orderBy: { externalId: "asc" },
       include: {
@@ -87,7 +102,7 @@ export class JudgingService {
     });
     if (!candidate) throw new NotFoundException("المتسابق غير موجود");
 
-    await this.assertSeated(judgeId, candidate.categoryId);
+    await this.assertMayJudge(judgeId, candidate.id, candidate.categoryId);
 
     let questions = await this.questions.listForCandidate(candidateId);
     if (!questions.length) {
@@ -114,7 +129,10 @@ export class JudgingService {
       });
     }
 
-    const scoring = await this.competitions.getScoringConfig(candidate.competitionId);
+    const scoring = await this.competitions.getScoringConfig(
+      candidate.competitionId,
+      candidate.category.hizbCount,
+    );
 
     const passages = await Promise.all(
       questions.map((q) => this.questions.getPassage(q.id)),
@@ -149,7 +167,10 @@ export class JudgingService {
       throw new BadRequestException("تم اعتماد هذه النتيجة ولا يمكن تعديلها");
     }
 
-    const scoring = await this.competitions.getScoringConfig(session.competitionId);
+    const scoring = await this.competitions.getScoringConfig(
+      session.competitionId,
+      session.candidate.category.hizbCount,
+    );
     const questionCount = session.candidate.category.questionCount;
 
     const paper = await this.questions.listForCandidate(session.candidateId);
@@ -391,7 +412,30 @@ export class JudgingService {
       .sort((a, b) => b.averageScore - a.averageScore);
   }
 
-  private async assertSeated(judgeId: string, categoryId: string) {
+  /**
+   * A judge may score a candidate if directly assigned to them; failing that, if
+   * the candidate has no direct judges and the judge sits on their category. A
+   * candidate assigned to other judges is off-limits.
+   */
+  private async assertMayJudge(
+    judgeId: string,
+    candidateId: string,
+    categoryId: string,
+  ) {
+    const directCount = await this.prisma.candidateJudge.count({
+      where: { candidateId },
+    });
+
+    if (directCount > 0) {
+      const mine = await this.prisma.candidateJudge.findUnique({
+        where: { candidateId_judgeId: { candidateId, judgeId } },
+      });
+      if (!mine) {
+        throw new ForbiddenException("هذا المتسابق مُسنَد إلى محكّمين آخرين");
+      }
+      return;
+    }
+
     const seat = await this.prisma.categoryJudge.findUnique({
       where: { categoryId_judgeId: { categoryId, judgeId } },
     });

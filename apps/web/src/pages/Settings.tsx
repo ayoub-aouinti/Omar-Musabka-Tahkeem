@@ -16,12 +16,28 @@ import {
   Icon,
   Input,
   Skeleton,
+  Textarea,
 } from "../components/ui";
 import type {
   Criterion,
   ScoringPenaltyInput,
+  ScoringScaleInput,
   ScoringUpdate,
 } from "../types";
+
+interface BandDraft {
+  minPoints: number;
+  maxPoints: number;
+  descriptionAr: string;
+}
+
+interface ScaleDraft {
+  labelAr: string;
+  minHizb: number;
+  maxHizb: number;
+  maxPoints: number;
+  bands: BandDraft[];
+}
 
 interface DirectDraft {
   key: string;
@@ -29,6 +45,7 @@ interface DirectDraft {
   descriptionAr: string | null;
   maxPoints: number;
   sortOrder: number;
+  scales: ScaleDraft[];
 }
 
 interface PenaltyDraft {
@@ -81,6 +98,23 @@ export function SettingsPage() {
           descriptionAr: c.descriptionAr,
           maxPoints: c.maxPoints,
           sortOrder: c.sortOrder,
+          scales: (c.scales ?? [])
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((s) => ({
+              labelAr: s.labelAr,
+              minHizb: s.minHizb,
+              maxHizb: s.maxHizb,
+              maxPoints: s.maxPoints,
+              bands: (s.bands ?? [])
+                .slice()
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((b) => ({
+                  minPoints: b.minPoints,
+                  maxPoints: b.maxPoints,
+                  descriptionAr: b.descriptionAr ?? "",
+                })),
+            })),
         })),
     );
     setPenalties(
@@ -105,6 +139,70 @@ export function SettingsPage() {
     setDirects((list) =>
       list.map((d, i) => (i === index ? { ...d, ...patch } : d)),
     );
+  }
+
+  function mutateScales(
+    dIndex: number,
+    fn: (scales: ScaleDraft[]) => ScaleDraft[],
+  ) {
+    setDirects((list) =>
+      list.map((d, i) => (i === dIndex ? { ...d, scales: fn(d.scales) } : d)),
+    );
+  }
+
+  function updateScale(
+    dIndex: number,
+    sIndex: number,
+    patch: Partial<ScaleDraft>,
+  ) {
+    mutateScales(dIndex, (scales) =>
+      scales.map((s, i) => (i === sIndex ? { ...s, ...patch } : s)),
+    );
+  }
+
+  function addScale(dIndex: number) {
+    mutateScales(dIndex, (scales) => [
+      ...scales,
+      { labelAr: "", minHizb: 1, maxHizb: 60, maxPoints: 10, bands: [] },
+    ]);
+  }
+
+  function removeScale(dIndex: number, sIndex: number) {
+    mutateScales(dIndex, (scales) => scales.filter((_, i) => i !== sIndex));
+  }
+
+  function mutateBands(
+    dIndex: number,
+    sIndex: number,
+    fn: (bands: BandDraft[]) => BandDraft[],
+  ) {
+    mutateScales(dIndex, (scales) =>
+      scales.map((s, i) =>
+        i === sIndex ? { ...s, bands: fn(s.bands) } : s,
+      ),
+    );
+  }
+
+  function updateBand(
+    dIndex: number,
+    sIndex: number,
+    bIndex: number,
+    patch: Partial<BandDraft>,
+  ) {
+    mutateBands(dIndex, sIndex, (bands) =>
+      bands.map((b, i) => (i === bIndex ? { ...b, ...patch } : b)),
+    );
+  }
+
+  function addBand(dIndex: number, sIndex: number) {
+    mutateBands(dIndex, sIndex, (bands) => [
+      ...bands,
+      { minPoints: 0, maxPoints: 0, descriptionAr: "" },
+    ]);
+  }
+
+  function removeBand(dIndex: number, sIndex: number, bIndex: number) {
+    mutateBands(dIndex, sIndex, (bands) => bands.filter((_, i) => i !== bIndex));
   }
 
   function updatePenalty(index: number, weight: number) {
@@ -135,6 +233,17 @@ export function SettingsPage() {
           kind: "DIRECT",
           maxPoints: Number(d.maxPoints),
           sortOrder: d.sortOrder || i + 1,
+          scales: d.scales.map<ScoringScaleInput>((s) => ({
+            labelAr: s.labelAr,
+            minHizb: Number(s.minHizb),
+            maxHizb: Number(s.maxHizb),
+            maxPoints: Number(s.maxPoints),
+            bands: s.bands.map((b) => ({
+              minPoints: Number(b.minPoints),
+              maxPoints: Number(b.maxPoints),
+              descriptionAr: b.descriptionAr,
+            })),
+          })),
         })),
       ],
       penaltyRules: penalties.map<ScoringPenaltyInput>((p) => ({
@@ -297,40 +406,237 @@ export function SettingsPage() {
                 لا توجد معايير مباشرة.
               </p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <p className="rounded-lg bg-surface-container-low p-3 font-body-md text-xs text-on-surface-variant">
+                  لكلّ معيار تجويد سلالم مرتبطة بعدد أحزاب المشارك؛ يُختار السلّم
+                  الذي يقع فيه عدد أحزابه، وتحدّد نطاقاته (الشرائح) الوصفية سقف
+                  الدرجة.
+                </p>
                 {directs.map((direct, index) => (
                   <div
                     key={direct.key}
-                    className="flex flex-wrap items-end gap-3 rounded-lg border border-outline-variant p-3"
+                    className="flex flex-col gap-3 rounded-lg border border-outline-variant p-3"
                   >
-                    <div className="flex flex-1 flex-col gap-1.5">
-                      <label className="font-label-md text-xs text-on-surface-variant">
-                        الاسم
-                      </label>
-                      <Input
-                        disabled={locked}
-                        value={direct.labelAr}
-                        onChange={(e) =>
-                          updateDirect(index, { labelAr: e.target.value })
-                        }
-                      />
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="flex flex-1 flex-col gap-1.5">
+                        <label className="font-label-md text-xs text-on-surface-variant">
+                          الاسم
+                        </label>
+                        <Input
+                          disabled={locked}
+                          value={direct.labelAr}
+                          onChange={(e) =>
+                            updateDirect(index, { labelAr: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="flex w-32 flex-col gap-1.5">
+                        <label className="font-label-md text-xs text-on-surface-variant">
+                          القيمة القصوى
+                        </label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.5"
+                          disabled={locked}
+                          value={direct.maxPoints}
+                          onChange={(e) =>
+                            updateDirect(index, {
+                              maxPoints: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="flex w-32 flex-col gap-1.5">
-                      <label className="font-label-md text-xs text-on-surface-variant">
-                        القيمة القصوى
-                      </label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.5"
-                        disabled={locked}
-                        value={direct.maxPoints}
-                        onChange={(e) =>
-                          updateDirect(index, {
-                            maxPoints: Number(e.target.value),
-                          })
-                        }
-                      />
+
+                    <div className="flex flex-col gap-3 border-t border-outline-variant pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-label-md text-xs font-medium text-on-surface-variant">
+                          السلالم (حسب عدد الأحزاب)
+                        </span>
+                        <Button
+                          variant="outline"
+                          icon="add"
+                          disabled={locked}
+                          onClick={() => addScale(index)}
+                        >
+                          سلّم
+                        </Button>
+                      </div>
+
+                      {direct.scales.length === 0 ? (
+                        <p className="font-body-md text-xs text-on-surface-variant">
+                          لا توجد سلالم — تُطبَّق القيمة القصوى مباشرة.
+                        </p>
+                      ) : (
+                        direct.scales.map((scale, sIndex) => (
+                          <div
+                            key={sIndex}
+                            className="flex flex-col gap-3 rounded-lg bg-surface-container-low p-3"
+                          >
+                            <div className="flex flex-wrap items-end gap-2">
+                              <div className="flex min-w-[140px] flex-1 flex-col gap-1.5">
+                                <label className="font-label-md text-xs text-on-surface-variant">
+                                  اسم السلّم
+                                </label>
+                                <Input
+                                  disabled={locked}
+                                  value={scale.labelAr}
+                                  onChange={(e) =>
+                                    updateScale(index, sIndex, {
+                                      labelAr: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="flex w-24 flex-col gap-1.5">
+                                <label className="font-label-md text-xs text-on-surface-variant">
+                                  من حزب
+                                </label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  disabled={locked}
+                                  value={scale.minHizb}
+                                  onChange={(e) =>
+                                    updateScale(index, sIndex, {
+                                      minHizb: Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="flex w-24 flex-col gap-1.5">
+                                <label className="font-label-md text-xs text-on-surface-variant">
+                                  إلى حزب
+                                </label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  disabled={locked}
+                                  value={scale.maxHizb}
+                                  onChange={(e) =>
+                                    updateScale(index, sIndex, {
+                                      maxHizb: Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="flex w-24 flex-col gap-1.5">
+                                <label className="font-label-md text-xs text-on-surface-variant">
+                                  القصوى
+                                </label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="0.5"
+                                  disabled={locked}
+                                  value={scale.maxPoints}
+                                  onChange={(e) =>
+                                    updateScale(index, sIndex, {
+                                      maxPoints: Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                icon="delete"
+                                disabled={locked}
+                                onClick={() => removeScale(index, sIndex)}
+                              >
+                                حذف
+                              </Button>
+                            </div>
+
+                            <div className="flex flex-col gap-2 border-t border-outline-variant pt-2">
+                              <div className="flex items-center justify-between">
+                                <span className="font-label-md text-xs text-on-surface-variant">
+                                  الشرائح الوصفية
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  icon="add"
+                                  disabled={locked}
+                                  onClick={() => addBand(index, sIndex)}
+                                >
+                                  شريحة
+                                </Button>
+                              </div>
+                              {scale.bands.length === 0 ? (
+                                <p className="font-body-md text-xs text-on-surface-variant">
+                                  لا توجد شرائح.
+                                </p>
+                              ) : (
+                                scale.bands.map((band, bIndex) => (
+                                  <div
+                                    key={bIndex}
+                                    className="flex flex-wrap items-start gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-2"
+                                  >
+                                    <div className="flex w-20 flex-col gap-1">
+                                      <label className="font-label-md text-[11px] text-on-surface-variant">
+                                        من
+                                      </label>
+                                      <Input
+                                        type="number"
+                                        step="0.5"
+                                        disabled={locked}
+                                        value={band.minPoints}
+                                        onChange={(e) =>
+                                          updateBand(index, sIndex, bIndex, {
+                                            minPoints: Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <div className="flex w-20 flex-col gap-1">
+                                      <label className="font-label-md text-[11px] text-on-surface-variant">
+                                        إلى
+                                      </label>
+                                      <Input
+                                        type="number"
+                                        step="0.5"
+                                        disabled={locked}
+                                        value={band.maxPoints}
+                                        onChange={(e) =>
+                                          updateBand(index, sIndex, bIndex, {
+                                            maxPoints: Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <div className="flex min-w-[180px] flex-1 flex-col gap-1">
+                                      <label className="font-label-md text-[11px] text-on-surface-variant">
+                                        الوصف
+                                      </label>
+                                      <Textarea
+                                        rows={2}
+                                        disabled={locked}
+                                        value={band.descriptionAr}
+                                        onChange={(e) =>
+                                          updateBand(index, sIndex, bIndex, {
+                                            descriptionAr: e.target.value,
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={locked}
+                                      onClick={() =>
+                                        removeBand(index, sIndex, bIndex)
+                                      }
+                                      className="mt-5 rounded-full p-1 text-on-surface-variant hover:bg-surface-container disabled:opacity-50"
+                                      aria-label="حذف الشريحة"
+                                    >
+                                      <Icon name="close" className="text-[18px]" />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 ))}

@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toDisplayDigits } from "@tahkeem/shared";
 import {
+  useBulkAssignJudge,
   useCandidates,
   useCompetition,
+  useJudges,
   type CandidateFilters,
 } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
@@ -11,6 +13,7 @@ import { useDebounce } from "../lib/useDebounce";
 import { apiErrorMessage } from "../lib/api";
 import { GENDER_LABELS, JUDGING_STATUS_LABELS } from "../lib/labels";
 import {
+  Banner,
   Button,
   Card,
   Chip,
@@ -18,6 +21,7 @@ import {
   ErrorState,
   Icon,
   Input,
+  Modal,
   Select,
   Skeleton,
 } from "../components/ui";
@@ -55,6 +59,110 @@ function judgingChip(candidate: CandidateListItem) {
   );
 }
 
+function BulkAssignModal({
+  candidateIds,
+  onClose,
+  onDone,
+}: {
+  candidateIds: string[];
+  onClose: () => void;
+  onDone: (assigned: number) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const debounced = useDebounce(search);
+  const judges = useJudges(debounced);
+  const assign = useBulkAssignJudge();
+  const [judgeId, setJudgeId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!judgeId) return;
+    setError(null);
+    try {
+      const res = await assign.mutateAsync({ judgeId, candidateIds });
+      onDone(res.assigned);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="إسناد محكّم" className="max-w-md">
+      <div className="flex flex-col gap-4">
+        {error ? (
+          <Banner tone="error" onDismiss={() => setError(null)}>
+            {error}
+          </Banner>
+        ) : null}
+        <p className="font-body-md text-sm text-on-surface-variant">
+          سيُسنَد المحكّم المختار إلى {toDisplayDigits(candidateIds.length)}{" "}
+          مشاركًا، فلا يُقيّمهم غيره.
+        </p>
+        <div className="relative">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute inset-y-0 end-3 my-auto text-[20px] text-on-surface-variant"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="ابحث عن محكّم…"
+            className="w-full pe-10"
+          />
+        </div>
+        <div className="max-h-60 overflow-auto rounded-lg border border-outline-variant">
+          {judges.isLoading ? (
+            <div className="space-y-2 p-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : !judges.data || judges.data.length === 0 ? (
+            <p className="p-4 text-center font-body-md text-sm text-on-surface-variant">
+              لا يوجد محكّمون مطابقون.
+            </p>
+          ) : (
+            <ul>
+              {judges.data.map((judge) => (
+                <li key={judge.id}>
+                  <label className="flex cursor-pointer items-center gap-3 border-b border-outline-variant/50 px-3 py-2 last:border-b-0 hover:bg-surface-container/50">
+                    <input
+                      type="radio"
+                      name="bulk-judge"
+                      checked={judgeId === judge.id}
+                      onChange={() => setJudgeId(judge.id)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    <span className="font-body-md text-sm text-on-surface">
+                      {judge.fullName}
+                    </span>
+                    <span className="font-body-md text-xs text-on-surface-variant">
+                      {GENDER_LABELS[judge.gender]}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button
+            icon="how_to_reg"
+            loading={assign.isPending}
+            disabled={!judgeId}
+            onClick={submit}
+          >
+            إسناد
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function CandidatesPage() {
   const { selectedId } = useSelectedCompetition();
   const competition = useCompetition(selectedId ?? undefined);
@@ -63,6 +171,9 @@ export function CandidatesPage() {
   const [gender, setGender] = useState("");
   const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(search);
 
@@ -82,6 +193,28 @@ export function CandidatesPage() {
 
   const total = candidates.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const items = candidates.data?.items ?? [];
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const allOnPageSelected =
+    items.length > 0 && items.every((c) => selectedSet.has(c.id));
+
+  function toggleSelect(id: string) {
+    setSelected((list) =>
+      list.includes(id) ? list.filter((x) => x !== id) : [...list, id],
+    );
+  }
+
+  function toggleSelectAll() {
+    if (allOnPageSelected) {
+      setSelected((list) => list.filter((id) => !items.some((c) => c.id === id)));
+    } else {
+      setSelected((list) => [
+        ...list,
+        ...items.filter((c) => !list.includes(c.id)).map((c) => c.id),
+      ]);
+    }
+  }
 
   if (!selectedId) {
     return (
@@ -165,6 +298,28 @@ export function CandidatesPage() {
         </div>
       </Card>
 
+      {notice ? (
+        <Banner tone="success" onDismiss={() => setNotice(null)}>
+          {notice}
+        </Banner>
+      ) : null}
+
+      {selected.length > 0 ? (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
+          <span className="font-body-md text-sm text-on-surface">
+            {toDisplayDigits(selected.length)} مشارك محدَّد
+          </span>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setSelected([])}>
+              إلغاء التحديد
+            </Button>
+            <Button icon="how_to_reg" onClick={() => setBulkOpen(true)}>
+              إسناد محكّم
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
       <Card className="overflow-hidden">
         {candidates.isLoading ? (
           <div className="space-y-3 p-4">
@@ -188,6 +343,15 @@ export function CandidatesPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-outline-variant text-start font-label-md text-xs text-on-surface-variant">
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label="تحديد كل المشاركين في الصفحة"
+                      checked={allOnPageSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-start font-medium">الاسم</th>
                   <th className="px-4 py-3 text-start font-medium">الصنف</th>
                   <th className="px-4 py-3 text-start font-medium">الجنس</th>
@@ -205,8 +369,28 @@ export function CandidatesPage() {
                       openId === candidate.id ? "row-active" : "",
                     ].join(" ")}
                   >
+                    <td
+                      className="px-4 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`تحديد ${candidate.fullName}`}
+                        checked={selectedSet.has(candidate.id)}
+                        onChange={() => toggleSelect(candidate.id)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-body-md text-sm font-medium text-on-surface">
-                      {candidate.fullName}
+                      <span className="flex items-center gap-2">
+                        {candidate.fullName}
+                        {candidate.explicitJudgeCount ? (
+                          <Chip className="bg-secondary-container text-on-secondary-container">
+                            <Icon name="how_to_reg" className="text-[14px]" />
+                            محكّمون معيّنون
+                          </Chip>
+                        ) : null}
+                      </span>
                     </td>
                     <td className="px-4 py-3 font-body-md text-sm text-on-surface-variant">
                       {candidate.category.labelAr}
@@ -262,6 +446,20 @@ export function CandidatesPage() {
       </Card>
 
       <CandidateDrawer candidateId={openId} onClose={() => setOpenId(null)} />
+
+      {bulkOpen ? (
+        <BulkAssignModal
+          candidateIds={selected}
+          onClose={() => setBulkOpen(false)}
+          onDone={(assigned) => {
+            setBulkOpen(false);
+            setSelected([]);
+            setNotice(
+              `تم إسناد المحكّم إلى ${toDisplayDigits(assigned)} مشاركًا.`,
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }

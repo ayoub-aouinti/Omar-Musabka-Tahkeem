@@ -8,6 +8,7 @@ import { CompetitionNewPage } from "./pages/CompetitionNew";
 import { CandidatesPage } from "./pages/Candidates";
 import { CandidateFormPage } from "./pages/CandidateForm";
 import { JudgesPage } from "./pages/Judges";
+import { QuestionsPage } from "./pages/Questions";
 import { SettingsPage } from "./pages/Settings";
 import { ResultsPage } from "./pages/Results";
 
@@ -29,6 +30,7 @@ export function App() {
         <Route path="/candidates/new" element={<CandidateFormPage />} />
         <Route path="/candidates/:id/edit" element={<CandidateFormPage />} />
         <Route path="/judges" element={<JudgesPage />} />
+        <Route path="/questions" element={<QuestionsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/results" element={<ResultsPage />} />
       </Route>

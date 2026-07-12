@@ -37,7 +37,7 @@ export class CandidatesService {
         : {}),
     };
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.candidate.findMany({
         where,
         take,
@@ -46,10 +46,17 @@ export class CandidatesService {
         include: {
           category: { select: { id: true, labelAr: true, hizbCount: true } },
           judgingSessions: { select: { id: true, status: true, judgeId: true } },
+          // Powers the «محكّمون معيّنون» badge and drives the override rule.
+          _count: { select: { judges: true } },
         },
       }),
       this.prisma.candidate.count({ where }),
     ]);
+
+    const items = rows.map(({ _count, ...candidate }) => ({
+      ...candidate,
+      explicitJudgeCount: _count.judges,
+    }));
 
     return { items, total, take, skip: query.skip ?? 0 };
   }
@@ -155,6 +162,63 @@ export class CandidatesService {
     await this.get(id);
     await this.prisma.candidate.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  /** The judges directly assigned to a candidate (overriding their category). */
+  async listJudges(candidateId: string) {
+    await this.get(candidateId);
+    const rows = await this.prisma.candidateJudge.findMany({
+      where: { candidateId },
+      include: { judge: { select: { id: true, fullName: true, gender: true } } },
+      orderBy: { assignedAt: "asc" },
+    });
+    return rows.map((r) => r.judge);
+  }
+
+  /**
+   * Replace a candidate's direct judge assignments. An empty list clears them,
+   * reopening the candidate to everyone seated on their category.
+   */
+  async setJudges(candidateId: string, judgeIds: string[]) {
+    await this.get(candidateId);
+
+    const unique = [...new Set(judgeIds)];
+    if (unique.length) {
+      const found = await this.prisma.judge.count({
+        where: { id: { in: unique } },
+      });
+      if (found !== unique.length) {
+        throw new BadRequestException("أحد المحكّمين غير موجود");
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.candidateJudge.deleteMany({ where: { candidateId } }),
+      ...(unique.length
+        ? [
+            this.prisma.candidateJudge.createMany({
+              data: unique.map((judgeId) => ({ candidateId, judgeId })),
+            }),
+          ]
+        : []),
+    ]);
+
+    return this.listJudges(candidateId);
+  }
+
+  /** Bulk-assign a judge to many candidates at once (from the judge's side). */
+  async assignJudgeToCandidates(judgeId: string, candidateIds: string[]) {
+    const judge = await this.prisma.judge.findUnique({ where: { id: judgeId } });
+    if (!judge) throw new NotFoundException("المحكّم غير موجود");
+
+    await this.prisma.candidateJudge.createMany({
+      data: [...new Set(candidateIds)].map((candidateId) => ({
+        candidateId,
+        judgeId,
+      })),
+      skipDuplicates: true,
+    });
+    return { assigned: candidateIds.length };
   }
 
   private parseScopeOrThrow(raw: string) {

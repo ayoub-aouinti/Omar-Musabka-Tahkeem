@@ -1,6 +1,7 @@
 import { Gender } from "@prisma/client";
 import { Type } from "class-transformer";
 import {
+  IsArray,
   IsEnum,
   IsInt,
   IsOptional,
@@ -37,4 +38,18 @@ export class UpdateCandidateDto {
   @IsOptional() @IsString() teacherName?: string;
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() scopeRaw?: string;
+}
+
+export class SetJudgesDto {
+  @IsArray()
+  @IsString({ each: true })
+  judgeIds!: string[];
+}
+
+export class AssignJudgeDto {
+  @IsString() judgeId!: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  candidateIds!: string[];
 }

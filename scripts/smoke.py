@@ -213,7 +213,11 @@ def main() -> None:
     check("session opens", opened["scoring"]["pointsPerQuestion"] == 15, "60 / 4 questions")
 
     questions = [p["question"]["id"] for p in opened["questions"]]
-    criteria = scoring["directCriteria"]
+    # The open session already resolved the general criteria to the candidate's
+    # category scale, so their maxima match what finalize will validate.
+    criteria = opened["scoring"]["directCriteria"]
+    check("general criteria resolved to the category scale", len(criteria) == 4,
+          f"{len(criteria)} criteria")
 
     # The mobile app scores one question at a time. «حفظ كمسودّة» stores the
     # tallies unconfirmed; «اعتماد تقييم السؤال» locks it in. The عامّة criteria
@@ -254,8 +258,9 @@ def main() -> None:
             jtoken,
         )
 
-    all_criteria = [{"criterionId": c["id"], "value": v}
-                    for c, v in zip(criteria, (27, 8))]
+    # Score every general criterion at 2 points (safe under every scaled max).
+    all_criteria = [{"criterionId": c["id"], "value": 2} for c in criteria]
+    direct_total = 2 * len(criteria)
     expect_error(
         "finalizing before every question is confirmed is refused",
         lambda: finalize(all_criteria),
@@ -290,7 +295,11 @@ def main() -> None:
     check("tanbih is charged at 0.75", hifz["tanbihPenalty"] == 0.75)
     check("talathum is charged at 0.25", hifz["talathumPenalty"] == 0.75)
     check("hifz = 60 - 19.5", hifz["score"] == 40.5, f"{hifz['score']} / 60")
-    check("total = hifz + direct", score["total"] == 75.5, f"{score['total']} / {score['maxTotal']}")
+    check(
+        "total = hifz + general",
+        score["total"] == 40.5 + direct_total,
+        f"{score['total']} = 40.5 + {direct_total}",
+    )
 
     expect_error(
         "a submitted result is immutable",
@@ -313,7 +322,67 @@ def main() -> None:
     )
 
     ranking = call(f"/judging/results?competitionId={cid}", token=token)
-    check("ranking reports the average", ranking[0]["averageScore"] == 75.5)
+    check(
+        "ranking reports the average",
+        ranking[0]["averageScore"] == 40.5 + direct_total,
+    )
+
+    print("\ntajweed scales (2025 rubric)")
+    detail = call(f"/competitions/{cid}", token=token)
+    makharij = next(c for c in detail["criteria"] if c["key"] == "makharij_sifat")
+    check("المخارج carries two category scales", len(makharij["scales"]) == 2)
+    under = call(f"/competitions/{cid}/scoring?hizbCount=5", token=token)
+    over = call(f"/competitions/{cid}/scoring?hizbCount=40", token=token)
+    mk_under = next(c for c in under["directCriteria"] if c["key"] == "makharij_sifat")
+    mk_over = next(c for c in over["directCriteria"] if c["key"] == "makharij_sifat")
+    check("دون 30 حزبًا → المخارج /16", mk_under["maxPoints"] == 16, mk_under["scaleLabelAr"])
+    check("30 فما فوق → المخارج /10", mk_over["maxPoints"] == 10, mk_over["scaleLabelAr"])
+    check("each scale carries guidance bands", len(mk_under["bands"]) == 4)
+
+    print("\njudge ↔ candidate assignment")
+    fresh = call(f"/candidates?competitionId={cid}&take=1&skip=20", token=token)["items"][0]
+    all_judges = call("/judges", token=token)
+    mine, other = all_judges[0], all_judges[1]
+
+    # Before assignment, a category-seated judge can open the candidate.
+    other_card = call(f"/judges/{other['id']}/access", "POST", {"competitionId": cid, "hours": 4}, token)
+    other_token = call("/auth/qr", "POST", {"token": other_card["token"]})["accessToken"]
+
+    call(f"/candidates/{fresh['id']}/judges", "POST", {"judgeIds": [mine["id"]]}, token)
+    assigned = call(f"/candidates/{fresh['id']}/judges", token=token)
+    check("candidate now has one explicit judge", len(assigned) == 1)
+
+    expect_error(
+        "a non-assigned judge is locked out once an assignment exists",
+        lambda: call(f"/judging/sessions/{fresh['id']}/open", "POST", None, other_token),
+    )
+
+    mine_card = call(f"/judges/{mine['id']}/access", "POST", {"competitionId": cid, "hours": 4}, token)
+    mine_token = call("/auth/qr", "POST", {"token": mine_card["token"]})["accessToken"]
+    opened_mine = call(f"/judging/sessions/{fresh['id']}/open", "POST", None, mine_token)
+    check("the assigned judge can open the candidate", "session" in opened_mine)
+
+    # Clearing the assignment reopens the candidate to the category.
+    call(f"/candidates/{fresh['id']}/judges", "POST", {"judgeIds": []}, token)
+    check("clearing reopens to the category", len(call(f"/candidates/{fresh['id']}/judges", token=token)) == 0)
+
+    print("\nquestion bank")
+    bank = call(f"/questions/bank?competitionId={cid}&candidateId={kid}", token=token)
+    check("bank lists the candidate's paper", bank["total"] == 4, f"{bank['total']} questions")
+    q0 = bank["items"][0]
+    check("bank rows carry resolved refs + difficulty",
+          "startRef" in q0 and q0["difficulty"] in ("EASY", "MEDIUM", "HARD"))
+
+    fresh2 = call(f"/candidates?competitionId={cid}&take=1&skip=30", token=token)["items"][0]
+    call(f"/questions/candidate/{fresh2['id']}/generate", "POST", {"regenerate": True}, token)
+    fq = call(f"/questions/bank?competitionId={cid}&candidateId={fresh2['id']}", token=token)["items"][0]
+    updated = call(f"/questions/{fq['id']}", "PATCH", {"difficulty": "HARD", "amountValue": 2}, token)
+    check("a bank question's difficulty is editable", updated["difficulty"] == "HARD")
+    only_hard = call(
+        f"/questions/bank?competitionId={cid}&candidateId={fresh2['id']}&difficulty=HARD",
+        token=token,
+    )
+    check("the bank filters by difficulty", only_hard["total"] == 1)
 
     print(f"\n{passed} checks passed\n")
 

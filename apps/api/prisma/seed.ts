@@ -29,6 +29,7 @@ import {
 } from "@tahkeem/shared";
 import * as bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
+import { TAJWEED_CRITERIA } from "../src/competitions/tajweed-criteria";
 
 const prisma = new PrismaClient();
 
@@ -200,22 +201,33 @@ async function seedCompetition(workbook: XLSX.WorkBook, verses: VerseRow[]) {
             maxPoints: DEFAULT_HIFZ_BASE,
             sortOrder: 0,
           },
-          {
-            key: "tajweed",
-            labelAr: "التجويد",
-            descriptionAr: "أحكام النون والميم ومخارج الحروف.",
-            kind: "DIRECT",
-            maxPoints: 30,
-            sortOrder: 1,
-          },
-          {
-            key: "adaa",
-            labelAr: "الأداء والصوت",
-            descriptionAr: "التدفق الجمالي وحسن الصوت.",
-            kind: "DIRECT",
-            maxPoints: 10,
-            sortOrder: 2,
-          },
+          // The four tajweed criteria of the 2025 rubric, each with its
+          // per-category scales and descriptive bands.
+          ...TAJWEED_CRITERIA.map((criterion, i) => ({
+            key: criterion.key,
+            labelAr: criterion.labelAr,
+            descriptionAr: criterion.descriptionAr,
+            kind: "DIRECT" as const,
+            maxPoints: criterion.maxPoints,
+            sortOrder: i + 1,
+            scales: {
+              create: criterion.scales.map((scale, si) => ({
+                labelAr: scale.labelAr,
+                minHizb: scale.minHizb,
+                maxHizb: scale.maxHizb,
+                maxPoints: scale.maxPoints,
+                sortOrder: si,
+                bands: {
+                  create: scale.bands.map((band, bi) => ({
+                    minPoints: band.minPoints,
+                    maxPoints: band.maxPoints,
+                    descriptionAr: band.descriptionAr,
+                    sortOrder: bi,
+                  })),
+                },
+              })),
+            },
+          })),
         ],
       },
       penaltyRules: {

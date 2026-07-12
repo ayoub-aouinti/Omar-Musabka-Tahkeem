@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { QuestionSource } from "@prisma/client";
+import { type QuestionDifficulty, QuestionSource } from "@prisma/client";
 import { type AmountUnit, createRng, DrawError, drawQuestionStarts } from "@tahkeem/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { QuranService } from "../quran/quran.service";
@@ -35,6 +35,115 @@ export class QuestionsService {
     return this.prisma.question.findMany({
       where: { competitionId, candidateId: null, categoryId },
       orderBy: { sortOrder: "asc" },
+    });
+  }
+
+  /**
+   * بنك الأسئلة — every question in a competition (auto-drawn per candidate and
+   * hand-entered bank alike), with the owning candidate/category and the start
+   * verse resolved for display. Filterable by category, candidate and difficulty.
+   */
+  async listAll(query: {
+    competitionId: string;
+    categoryId?: string;
+    candidateId?: string;
+    difficulty?: QuestionDifficulty;
+    source?: QuestionSource;
+    take?: number;
+    skip?: number;
+  }) {
+    const take = Math.min(query.take ?? 100, 500);
+    const where = {
+      competitionId: query.competitionId,
+      categoryId: query.categoryId,
+      candidateId: query.candidateId,
+      difficulty: query.difficulty,
+      source: query.source,
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.question.findMany({
+        where,
+        take,
+        skip: query.skip ?? 0,
+        orderBy: [{ candidateId: "asc" }, { sortOrder: "asc" }],
+        include: {
+          candidate: { select: { id: true, fullName: true, externalId: true } },
+          category: { select: { id: true, labelAr: true, hizbCount: true } },
+        },
+      }),
+      this.prisma.question.count({ where }),
+    ]);
+
+    const items = rows.map((q) => {
+      const start = this.quran.getVerse(q.startVerseId);
+      const end = this.quran.getVerse(q.endVerseId);
+      return {
+        ...q,
+        startRef: { surah: start.suraNameAr.trim(), ayah: start.ayaNumber, page: start.page },
+        endRef: { surah: end.suraNameAr.trim(), ayah: end.ayaNumber, page: end.page },
+        verseCount: q.endVerseId - q.startVerseId + 1,
+      };
+    });
+
+    return { items, total, take, skip: query.skip ?? 0 };
+  }
+
+  /** Edit a bank question: its start, size or difficulty. Recomputes the end. */
+  async update(
+    id: string,
+    input: {
+      startVerseId?: number;
+      amountUnit?: AmountUnit;
+      amountValue?: number;
+      difficulty?: QuestionDifficulty;
+    },
+  ) {
+    const question = await this.prisma.question.findUnique({
+      where: { id },
+      include: { candidate: true },
+    });
+    if (!question) throw new NotFoundException("السؤال غير موجود");
+
+    const submitted = question.candidateId
+      ? await this.prisma.judgingSession.count({
+          where: { candidateId: question.candidateId, status: "SUBMITTED" },
+        })
+      : 0;
+    if (submitted > 0) {
+      throw new BadRequestException("لا يمكن تعديل سؤال متسابق بعد اعتماد نتيجته");
+    }
+
+    const startVerseId = input.startVerseId ?? question.startVerseId;
+    const amountUnit = (input.amountUnit ?? question.amountUnit) as AmountUnit;
+    const amountValue = input.amountValue ?? question.amountValue;
+
+    if (input.startVerseId !== undefined) this.quran.getVerse(startVerseId); // 400s if absent
+
+    // Keep a candidate question inside their declared scope.
+    const ceiling = question.candidate?.scopeEndVerseId;
+    if (
+      question.candidate &&
+      (startVerseId < question.candidate.scopeStartVerseId ||
+        startVerseId > question.candidate.scopeEndVerseId)
+    ) {
+      throw new BadRequestException("الآية خارج نطاق حفظ المتسابق");
+    }
+
+    return this.prisma.question.update({
+      where: { id },
+      data: {
+        startVerseId,
+        amountUnit,
+        amountValue,
+        difficulty: input.difficulty,
+        endVerseId: this.quran.resolvePassageEnd(
+          startVerseId,
+          amountUnit,
+          amountValue,
+          ceiling,
+        ),
+      },
     });
   }
 
@@ -181,6 +290,7 @@ export class QuestionsService {
     startVerseId: number;
     amountUnit: AmountUnit;
     amountValue: number;
+    difficulty?: QuestionDifficulty;
   }) {
     this.quran.getVerse(input.startVerseId); // 400s if the verse does not exist
 

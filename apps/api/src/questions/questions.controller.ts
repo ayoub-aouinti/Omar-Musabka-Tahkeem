@@ -4,13 +4,19 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { UserRole } from "@prisma/client";
 import { Roles } from "../common/decorators";
-import { CreateManualQuestionDto, GenerateDto } from "./dto";
+import {
+  CreateManualQuestionDto,
+  GenerateDto,
+  ListBankDto,
+  UpdateQuestionDto,
+} from "./dto";
 import { QuestionsService } from "./questions.service";
 
 @ApiTags("questions")
@@ -19,12 +25,9 @@ export class QuestionsController {
   constructor(private readonly questions: QuestionsService) {}
 
   @Get("bank")
-  @ApiOperation({ summary: "بنك الأسئلة (غير مسندة لمتسابق)" })
-  bank(
-    @Query("competitionId") competitionId: string,
-    @Query("categoryId") categoryId?: string,
-  ) {
-    return this.questions.listBank(competitionId, categoryId);
+  @ApiOperation({ summary: "بنك الأسئلة: كل الأسئلة مع التصفية والصعوبة" })
+  bank(@Query() query: ListBankDto) {
+    return this.questions.listAll(query);
   }
 
   @Get("candidate/:candidateId")
@@ -57,9 +60,16 @@ export class QuestionsController {
 
   @Roles(UserRole.ADMIN)
   @Post()
-  @ApiOperation({ summary: "إضافة سؤال يدويًا" })
+  @ApiOperation({ summary: "إضافة سؤال يدويًا مع درجة الصعوبة" })
   createManual(@Body() dto: CreateManualQuestionDto) {
     return this.questions.createManual(dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch(":id")
+  @ApiOperation({ summary: "تعديل سؤال (البداية، المقدار، الصعوبة)" })
+  update(@Param("id") id: string, @Body() dto: UpdateQuestionDto) {
+    return this.questions.update(id, dto);
   }
 
   @Roles(UserRole.ADMIN)

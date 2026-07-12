@@ -145,11 +145,22 @@ export interface QuestionPassage {
   pages: string[];
 }
 
+export interface CriterionBand {
+  minPoints: number;
+  maxPoints: number;
+  descriptionAr: string;
+}
+
 export interface DirectCriterion {
   id: string;
   key: string;
   labelAr: string;
+  /** Resolved to the candidate's category scale. */
   maxPoints: number;
+  /** The matched scale, e.g. «دون 30 حزبًا» — null when the criterion has none. */
+  scaleLabelAr: string | null;
+  /** Descriptive guidance the judge reads before choosing a number. */
+  bands: CriterionBand[];
 }
 
 export interface ScoringConfig {
