@@ -67,6 +67,7 @@ export default {
       fontFamily: {
         "arabic-display": ["Amiri", "serif"],
         "arabic-body": ["Amiri", "serif"],
+        mushaf: ["UthmanicQaloun", "Amiri", "serif"],
         "headline-md": ["Noto Serif", "serif"],
         "headline-lg": ["Noto Serif", "serif"],
         "display-lg": ["Noto Serif", "serif"],

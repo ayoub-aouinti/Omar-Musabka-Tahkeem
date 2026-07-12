@@ -1,11 +1,12 @@
-import { toDisplayDigits } from "@tahkeem/shared";
+import { toArabicDigits, toDisplayDigits } from "@tahkeem/shared";
 import type { PassageVerse } from "../types";
 
 /**
- * Renders a full mushaf page (or pages) as flowing serif Arabic text. Verses
- * within the question span carry `highlighted` and get a subtle grey wash — not
- * green — so the passage reads like a printed page with a marked stretch. A
- * decorated surah-name band precedes any verse where `startsSurah` is true.
+ * Renders a full mushaf page (or pages) in the Qaloun Uthmanic typeface, styled
+ * after a printed mushaf: a parchment page frame and a gilded double-bordered
+ * surah-name band. Verses within the question span carry `highlighted` and get
+ * a subtle grey wash — not green — so the passage reads like a printed page
+ * with a marked stretch.
  */
 export function MushafPage({
   verses,
@@ -31,17 +32,25 @@ export function MushafPage({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 leading-[2.4] sm:p-6">
-        <p className="text-justify font-arabic-body text-2xl text-on-surface">
+      <div className="rounded-xl border-2 border-primary-container/40 bg-[#fbf6e9] p-6 leading-[2.7] shadow-inner ring-1 ring-inset ring-primary-container/20 sm:p-8">
+        {/*
+         * text-right, not text-justify: the mushaf panel is a narrow modal
+         * column, and CSS justify has no kashida support -- once a line holds
+         * only one or two words it stretches the gap between them to fill the
+         * line, which reads as broken rather than "printed". A non-breaking
+         * space glues each ayah number to its verse's last word so the
+         * number circle never wraps onto a line by itself.
+         */}
+        <p className="text-right font-mushaf text-xl text-on-surface sm:text-2xl">
           {verses.map((verse) => (
             <span key={verse.id}>
               {verse.startsSurah ? (
                 <span className="my-3 flex items-center justify-center gap-3 py-1">
-                  <span className="h-px flex-1 bg-outline-variant" aria-hidden />
-                  <span className="rounded-full border border-outline-variant bg-surface-container px-4 py-1 font-arabic-display text-lg text-primary">
-                    سُورَة {verse.suraNameAr}
+                  <span className="h-px flex-1 bg-primary-container/40" aria-hidden />
+                  <span className="rounded border-2 border-double border-primary-container/60 bg-primary-container/10 px-4 py-1 font-mushaf text-base text-primary sm:text-lg">
+                    سُورَةُ {verse.suraNameAr}
                   </span>
-                  <span className="h-px flex-1 bg-outline-variant" aria-hidden />
+                  <span className="h-px flex-1 bg-primary-container/40" aria-hidden />
                 </span>
               ) : null}
               <span
@@ -51,9 +60,15 @@ export function MushafPage({
                     : undefined
                 }
               >
-                {verse.ayaText}{" "}
-                <span className="mx-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-outline-variant align-middle font-body-md text-xs text-on-surface-variant">
-                  {toDisplayDigits(verse.ayaNumber)}
+                {verse.ayaText}
+                {" "}
+                {/* Amiri, not font-mushaf: UthmanicQaloun substitutes Arabic-Indic
+                    digits with a plain ayah-end rosette (no numeral drawn), so the
+                    number itself needs a font that actually renders the digit. The
+                    non-breaking space above keeps the circle glued to the verse's
+                    last word instead of wrapping onto a line by itself. */}
+                <span className="mx-1 inline-flex h-7 w-7 items-center justify-center rounded-full border border-primary-container/50 bg-primary-container/10 align-middle font-arabic-body text-sm leading-none text-primary">
+                  {toArabicDigits(verse.ayaNumber)}
                 </span>{" "}
               </span>
             </span>

@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Qaloun mushaf typeface — used only for MushafPage, so it's loaded outside
+   @layer base to avoid competing with Amiri's `font-display: swap` timing. */
+@font-face {
+  font-family: "UthmanicQaloun";
+  src: url("/fonts/uthmanic_qaloun_v21.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     color-scheme: light;

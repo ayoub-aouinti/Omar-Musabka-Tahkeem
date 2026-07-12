@@ -89,24 +89,6 @@ function DraftControls({
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1.5">
           <span className="font-label-md text-xs text-on-surface-variant">
-            السورة
-          </span>
-          <Select
-            disabled={disabled}
-            value={draft.surahNumber}
-            onChange={(e) =>
-              onChange({ surahNumber: Number(e.target.value), ayah: 1 })
-            }
-          >
-            {surahs.map((s) => (
-              <option key={s.number} value={s.number}>
-                {toDisplayDigits(s.number)}. {s.nameAr}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="font-label-md text-xs text-on-surface-variant">
             الآية (البداية)
           </span>
           <Input
@@ -124,6 +106,24 @@ function DraftControls({
               })
             }
           />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="font-label-md text-xs text-on-surface-variant">
+            السورة
+          </span>
+          <Select
+            disabled={disabled}
+            value={draft.surahNumber}
+            onChange={(e) =>
+              onChange({ surahNumber: Number(e.target.value), ayah: 1 })
+            }
+          >
+            {surahs.map((s) => (
+              <option key={s.number} value={s.number}>
+                {toDisplayDigits(s.number)}. {s.nameAr}
+              </option>
+            ))}
+          </Select>
         </label>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -276,9 +276,9 @@ function EditQuestionModal({
       open
       onClose={onClose}
       title="تفاصيل السؤال"
-      className="max-w-5xl"
+      className="max-w-7xl"
     >
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
         {/* RTL: the mushaf occupies the visual LEFT column. */}
         <div className="order-2 lg:order-1">
           {passage.isLoading ? (
@@ -454,8 +454,8 @@ function AddQuestionModal({
       : Boolean(target.candidateId));
 
   return (
-    <Modal open onClose={onClose} title="إضافة سؤال" className="max-w-5xl">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <Modal open onClose={onClose} title="إضافة سؤال" className="max-w-7xl">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
         <div className="order-2 lg:order-1">
           {preview.isFetching ? (
             <Skeleton className="h-96 w-full" />
