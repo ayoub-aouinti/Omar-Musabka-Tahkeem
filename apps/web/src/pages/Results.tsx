@@ -19,6 +19,16 @@ import type { CandidateReport } from "../types";
 
 const MEDALS = ["#f6c945", "#c4c7c3", "#cd8a4b"];
 
+function formatDuration(minutes: number | null): string {
+  if (minutes === null) return "—";
+  if (minutes < 60) return `${toDisplayDigits(minutes)} د`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0
+    ? `${toDisplayDigits(hours)} س`
+    : `${toDisplayDigits(hours)} س ${toDisplayDigits(rest)} د`;
+}
+
 /** The two tables shared by the on-screen drawer and the printed card. */
 function CandidateReportBody({ report }: { report: CandidateReport }) {
   return (
@@ -34,13 +44,29 @@ function CandidateReportBody({ report }: { report: CandidateReport }) {
             ? ` · المعلّم: ${report.candidate.teacherName}`
             : ""}
         </p>
-        <p className="mt-1 font-body-md text-sm text-on-surface-variant">
-          عدد المحكّمين: {toDisplayDigits(report.judgeCount)} · النتيجة
-          الإجمالية:{" "}
-          <span className="font-headline-md text-base text-primary" dir="ltr">
-            {report.averageScore.toFixed(2)}
-          </span>
-        </p>
+        {report.judges.length > 0 ? (
+          <div className="mt-2 flex flex-col gap-1">
+            {report.judges.map((j) => (
+              <p
+                key={j.id}
+                className="font-body-md text-sm text-on-surface-variant"
+              >
+                <Icon
+                  name="how_to_reg"
+                  className="me-1 align-middle text-[16px]"
+                />
+                {j.fullName}
+                <span className="ms-2 font-body-md text-xs text-on-surface-variant">
+                  · مدّة التّقييم: {formatDuration(j.durationMinutes)}
+                </span>
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 font-body-md text-sm text-on-surface-variant">
+            لم يُقيَّم بعد.
+          </p>
+        )}
       </div>
 
       <section>
@@ -112,6 +138,15 @@ function CandidateReportBody({ report }: { report: CandidateReport }) {
             ))}
           </div>
         ) : null}
+
+        <div className="mt-4 flex items-center justify-between rounded-xl border-2 border-primary bg-primary-container/10 px-4 py-3">
+          <span className="font-label-md text-sm font-medium text-on-surface">
+            النّتيجة النّهائيّة
+          </span>
+          <span className="font-headline-lg text-2xl text-primary" dir="ltr">
+            {report.finalScoreOn20.toFixed(2)} / 20
+          </span>
+        </div>
       </section>
     </div>
   );

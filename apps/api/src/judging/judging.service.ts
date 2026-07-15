@@ -54,15 +54,23 @@ export class JudgingService {
   }
 
   /**
-   * Candidates this judge may evaluate: only those explicitly assigned to them
-   * via CandidateJudge. The category seat governs which categories a judge may
-   * be assigned candidates from, not visibility on its own.
+   * Candidates this judge may evaluate: those explicitly assigned to them via
+   * CandidateJudge, plus every candidate with no explicit judge at all whose
+   * category seats this judge (CategoryJudge) — the category default. A
+   * candidate with any explicit judge is closed to everyone else, including
+   * judges seated on its category.
    */
   async myCandidates(judgeId: string, competitionId: string) {
     return this.prisma.candidate.findMany({
       where: {
         competitionId,
-        judges: { some: { judgeId } },
+        OR: [
+          { judges: { some: { judgeId } } },
+          {
+            judges: { none: {} },
+            category: { judges: { some: { judgeId } } },
+          },
+        ],
       },
       orderBy: { externalId: "asc" },
       include: {
@@ -485,9 +493,31 @@ export class JudgingService {
       .filter((s) => s.notes && s.notes.trim().length > 0)
       .map((s) => ({ judge: s.judge, notes: s.notes as string }));
 
+    const judges = sessions.map((s) => ({
+      id: s.judge.id,
+      fullName: s.judge.fullName,
+      durationMinutes:
+        s.startedAt && s.submittedAt
+          ? Math.max(
+              0,
+              Math.round(
+                (s.submittedAt.getTime() - s.startedAt.getTime()) / 60_000,
+              ),
+            )
+          : null,
+    }));
+
     const totalScores = sessions
       .map((s) => s.totalScore)
       .filter((v): v is number => v !== null);
+    const averageScore = totalScores.length
+      ? round2(totalScores.reduce((a, b) => a + b, 0) / totalScores.length)
+      : 0;
+
+    const maxTotal = round2(
+      scoring.hifzBase +
+        scoring.directCriteria.reduce((sum, c) => sum + c.maxPoints, 0),
+    );
 
     return {
       candidate: {
@@ -504,10 +534,11 @@ export class JudgingService {
         },
       },
       competition: candidate.competition,
+      judges,
       judgeCount: sessions.length,
-      averageScore: totalScores.length
-        ? round2(totalScores.reduce((a, b) => a + b, 0) / totalScores.length)
-        : 0,
+      averageScore,
+      maxTotal,
+      finalScoreOn20: maxTotal > 0 ? round2((averageScore / maxTotal) * 20) : 0,
       hifzBase: scoring.hifzBase,
       questions: questionRows,
       criteria: criteriaRows,
@@ -515,13 +546,30 @@ export class JudgingService {
     };
   }
 
-  /** A judge may score a candidate only if explicitly assigned to them. */
+  /**
+   * A judge may score a candidate if explicitly assigned to them, or — when
+   * the candidate has no explicit judge at all — if seated on the candidate's
+   * category.
+   */
   private async assertMayJudge(judgeId: string, candidateId: string) {
     const mine = await this.prisma.candidateJudge.findUnique({
       where: { candidateId_judgeId: { candidateId, judgeId } },
     });
-    if (!mine) {
-      throw new ForbiddenException("هذا المتسابق غير مُسنَد إليك");
+    if (mine) return;
+
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { id: candidateId },
+      select: { categoryId: true, _count: { select: { judges: true } } },
+    });
+    if (candidate && candidate._count.judges === 0) {
+      const seated = await this.prisma.categoryJudge.findUnique({
+        where: {
+          categoryId_judgeId: { categoryId: candidate.categoryId, judgeId },
+        },
+      });
+      if (seated) return;
     }
+
+    throw new ForbiddenException("هذا المتسابق غير مُسنَد إليك");
   }
 }

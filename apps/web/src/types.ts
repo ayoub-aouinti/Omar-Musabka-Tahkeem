@@ -463,6 +463,12 @@ export interface CandidateReportNote {
   notes: string;
 }
 
+export interface CandidateReportJudge {
+  id: string;
+  fullName: string;
+  durationMinutes: number | null;
+}
+
 export interface CandidateReport {
   candidate: {
     id: string;
@@ -474,8 +480,11 @@ export interface CandidateReport {
     category: { id: string; labelAr: string; hizbCount: number };
   };
   competition: { id: string; name: string };
+  judges: CandidateReportJudge[];
   judgeCount: number;
   averageScore: number;
+  maxTotal: number;
+  finalScoreOn20: number;
   hifzBase: number;
   questions: CandidateReportQuestion[];
   criteria: CandidateReportCriterion[];

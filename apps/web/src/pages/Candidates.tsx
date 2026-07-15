@@ -29,6 +29,7 @@ import { CandidateDrawer } from "../components/CandidateDrawer";
 import type { CandidateListItem } from "../types";
 
 const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = Array.from({ length: 100 }, (_, i) => i + 1);
 
 function judgingChip(candidate: CandidateListItem) {
   const submitted = candidate.judgingSessions.filter(
@@ -184,6 +185,7 @@ export function CandidatesPage() {
   const [categoryId, setCategoryId] = useState("");
   const [gender, setGender] = useState("");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [openId, setOpenId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -197,16 +199,16 @@ export function CandidatesPage() {
       categoryId: categoryId || undefined,
       gender: gender || undefined,
       search: debouncedSearch || undefined,
-      take: PAGE_SIZE,
-      skip: page * PAGE_SIZE,
+      take: pageSize,
+      skip: page * pageSize,
     }),
-    [selectedId, categoryId, gender, debouncedSearch, page],
+    [selectedId, categoryId, gender, debouncedSearch, page, pageSize],
   );
 
   const candidates = useCandidates(filters, Boolean(selectedId));
 
   const total = candidates.data?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   const items = candidates.data?.items ?? [];
   const selectedSet = useMemo(() => new Set(selected), [selected]);
@@ -308,6 +310,24 @@ export function CandidatesPage() {
             <option value="">الكل</option>
             <option value="MALE">{GENDER_LABELS.MALE}</option>
             <option value="FEMALE">{GENDER_LABELS.FEMALE}</option>
+          </Select>
+        </div>
+        <div>
+          <label className="mb-1.5 block font-label-md text-xs text-on-surface-variant">
+            عدد المعروضين
+          </label>
+          <Select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(0);
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {toDisplayDigits(size)}
+              </option>
+            ))}
           </Select>
         </div>
       </Card>
@@ -432,7 +452,7 @@ export function CandidatesPage() {
           </div>
         )}
 
-        {total > PAGE_SIZE ? (
+        {total > pageSize ? (
           <div className="flex items-center justify-between border-t border-outline-variant px-4 py-3">
             <span className="font-body-md text-sm text-on-surface-variant">
               صفحة {toDisplayDigits(page + 1)} من {toDisplayDigits(pageCount)}
