@@ -1,24 +1,200 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toDisplayDigits } from "@tahkeem/shared";
-import { useCompetition, useResults } from "../hooks";
+import { useCandidateReport, useCompetition, useResults } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
 import { apiErrorMessage } from "../lib/api";
+import { GENDER_LABELS } from "../lib/labels";
 import {
+  Button,
   Card,
+  Drawer,
   EmptyState,
   ErrorState,
   Icon,
   Select,
   Skeleton,
 } from "../components/ui";
+import type { CandidateReport } from "../types";
 
 const MEDALS = ["#f6c945", "#c4c7c3", "#cd8a4b"];
+
+/** The two tables shared by the on-screen drawer and the printed card. */
+function CandidateReportBody({ report }: { report: CandidateReport }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h3 className="font-headline-md text-xl text-on-surface">
+          {report.candidate.fullName}
+        </h3>
+        <p className="mt-1 font-body-md text-sm text-on-surface-variant">
+          {GENDER_LABELS[report.candidate.gender]} ·{" "}
+          {report.candidate.category.labelAr}
+          {report.candidate.teacherName
+            ? ` · المعلّم: ${report.candidate.teacherName}`
+            : ""}
+        </p>
+        <p className="mt-1 font-body-md text-sm text-on-surface-variant">
+          عدد المحكّمين: {toDisplayDigits(report.judgeCount)} · النتيجة
+          الإجمالية:{" "}
+          <span className="font-headline-md text-base text-primary" dir="ltr">
+            {report.averageScore.toFixed(2)}
+          </span>
+        </p>
+      </div>
+
+      <section>
+        <h4 className="mb-2 font-label-md text-sm font-medium text-on-surface-variant">
+          الحفظ — الأسئلة
+        </h4>
+        <div className="overflow-hidden rounded-lg border border-outline-variant">
+          <table className="w-full border-collapse text-start text-sm">
+            <thead>
+              <tr className="bg-surface-container text-start font-label-md text-xs text-on-surface-variant">
+                <th className="px-3 py-2 text-start font-medium">السّؤال</th>
+                <th className="px-3 py-2 text-start font-medium">النتيجة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.questions.map((q, i) => (
+                <tr key={q.id} className="border-t border-outline-variant/60">
+                  <td className="px-3 py-2 font-arabic-body text-on-surface">
+                    {toDisplayDigits(i + 1)}. {q.label}
+                  </td>
+                  <td className="px-3 py-2 text-on-surface" dir="ltr">
+                    {q.averageScore === null
+                      ? "—"
+                      : `${q.averageScore.toFixed(2)} / ${q.maxScore.toFixed(2)}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h4 className="mb-2 font-label-md text-sm font-medium text-on-surface-variant">
+          المعايير العامّة للتقييم
+        </h4>
+        <div className="overflow-hidden rounded-lg border border-outline-variant">
+          <table className="w-full border-collapse text-start text-sm">
+            <thead>
+              <tr className="bg-surface-container text-start font-label-md text-xs text-on-surface-variant">
+                <th className="px-3 py-2 text-start font-medium">المعيار</th>
+                <th className="px-3 py-2 text-start font-medium">النتيجة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.criteria.map((c) => (
+                <tr key={c.id} className="border-t border-outline-variant/60">
+                  <td className="px-3 py-2 text-on-surface">{c.labelAr}</td>
+                  <td className="px-3 py-2 text-on-surface" dir="ltr">
+                    {c.averageValue === null
+                      ? "—"
+                      : `${c.averageValue.toFixed(2)} / ${c.maxPoints.toFixed(2)}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {report.notes.length > 0 ? (
+          <div className="mt-3 flex flex-col gap-2">
+            {report.notes.map((n, i) => (
+              <p
+                key={i}
+                className="rounded-lg border border-outline-variant bg-surface-container/50 px-3 py-2 font-body-md text-sm text-on-surface"
+              >
+                <span className="font-medium">{n.judge.fullName}:</span>{" "}
+                {n.notes}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function CandidateReportDrawer({
+  candidateId,
+  onClose,
+}: {
+  candidateId: string | null;
+  onClose: () => void;
+}) {
+  const { data, isLoading, isError, error, refetch } = useCandidateReport(
+    candidateId ?? undefined,
+  );
+
+  return (
+    <Drawer open={candidateId !== null} onClose={onClose} title="بطاقة النتيجة">
+      {isLoading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      ) : isError || !data ? (
+        <ErrorState message={apiErrorMessage(error)} onRetry={() => refetch()} />
+      ) : (
+        <CandidateReportBody report={data} />
+      )}
+    </Drawer>
+  );
+}
+
+/** Portals the printable card to <body>, prints it once loaded, then reports back. */
+function CandidateReportPrint({
+  candidateId,
+  onDone,
+}: {
+  candidateId: string;
+  onDone: () => void;
+}) {
+  const { data } = useCandidateReport(candidateId);
+  const printed = useRef(false);
+
+  useEffect(() => {
+    if (!data || printed.current) return;
+    printed.current = true;
+    window.addEventListener("afterprint", onDone, { once: true });
+    const id = window.setTimeout(() => window.print(), 50);
+    return () => window.clearTimeout(id);
+  }, [data, onDone]);
+
+  if (!data) return null;
+
+  return createPortal(
+    <div className="print-only" dir="rtl">
+      <div style={{ textAlign: "center", fontFamily: "Amiri, serif", color: "#1b1c1c" }}>
+        <img
+          src="/logo-omar.png"
+          alt=""
+          style={{ width: "20mm", height: "20mm", borderRadius: "50%" }}
+        />
+        <p style={{ fontSize: "11pt", margin: "2mm 0 0" }}>
+          جمعية عمر بن الخطاب — دار شعبان الفهري
+        </p>
+        <p style={{ fontSize: "13pt", fontWeight: 700, margin: "1mm 0 6mm" }}>
+          {data.competition.name}
+        </p>
+      </div>
+      <div style={{ fontFamily: "'Work Sans', sans-serif" }}>
+        <CandidateReportBody report={data} />
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export function ResultsPage() {
   const { selectedId } = useSelectedCompetition();
   const competition = useCompetition(selectedId ?? undefined);
   const [categoryId, setCategoryId] = useState("");
   const results = useResults(selectedId ?? undefined, categoryId);
+  const [viewId, setViewId] = useState<string | null>(null);
+  const [printId, setPrintId] = useState<string | null>(null);
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>();
@@ -98,6 +274,7 @@ export function ResultsPage() {
                   <th className="px-4 py-3 text-start font-medium">
                     متوسّط الدرجة
                   </th>
+                  <th className="px-4 py-3 text-end font-medium">إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -140,6 +317,25 @@ export function ResultsPage() {
                         {row.averageScore.toFixed(2)}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          icon="visibility"
+                          onClick={() => setViewId(row.candidate.id)}
+                        >
+                          الاطّلاع
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          icon="print"
+                          disabled={printId === row.candidate.id}
+                          onClick={() => setPrintId(row.candidate.id)}
+                        >
+                          طباعة
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -147,6 +343,14 @@ export function ResultsPage() {
           </div>
         )}
       </Card>
+
+      <CandidateReportDrawer candidateId={viewId} onClose={() => setViewId(null)} />
+      {printId ? (
+        <CandidateReportPrint
+          candidateId={printId}
+          onDone={() => setPrintId(null)}
+        />
+      ) : null}
     </div>
   );
 }

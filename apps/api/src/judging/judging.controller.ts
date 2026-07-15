@@ -67,6 +67,13 @@ export class JudgingController {
   ) {
     return this.judging.results(competitionId, categoryId);
   }
+
+  @Roles(UserRole.ADMIN)
+  @Get("results/:candidateId")
+  @ApiOperation({ summary: "بطاقة نتيجة متسابق: أسئلته ومعاييره وملاحظات محكّميه" })
+  candidateReport(@Param("candidateId") candidateId: string) {
+    return this.judging.candidateReport(candidateId);
+  }
 }
 
 function requireJudge(user: AuthUser): string {

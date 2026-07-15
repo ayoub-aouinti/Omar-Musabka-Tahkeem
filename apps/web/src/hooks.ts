@@ -15,6 +15,7 @@ import type {
   CandidateJudge,
   CandidateList,
   CandidateQuestion,
+  CandidateReport,
   CandidateUpdate,
   CategoryGenerateResult,
   CategoryUpsert,
@@ -60,8 +61,12 @@ export const qk = {
     ["quran", "verses", start, end] as const,
   candidateJudges: (candidateId: string) =>
     ["candidates", candidateId, "judges"] as const,
+  categoryJudges: (competitionId: string, categoryId: string) =>
+    ["competitions", competitionId, "categories", categoryId, "judges"] as const,
   results: (competitionId: string, categoryId: string) =>
     ["results", competitionId, categoryId] as const,
+  candidateReport: (candidateId: string) =>
+    ["results", "candidate", candidateId] as const,
 };
 
 /* -------------------------------------------------------------------------- */
@@ -487,19 +492,61 @@ export function useBulkAssignJudge() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      judgeId,
+      judgeIds,
       candidateIds,
     }: {
-      judgeId: string;
+      judgeIds: string[];
       candidateIds: string[];
     }) => {
       const res = await api.post<AssignJudgeResult>(
         "/candidates/assign-judge",
-        { judgeId, candidateIds },
+        { judgeIds, candidateIds },
       );
       return res.data;
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["candidates"] });
+    },
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*                      Judge ↔ category (group) assignment                   */
+/* -------------------------------------------------------------------------- */
+
+export function useCategoryJudges(
+  competitionId: string | undefined,
+  categoryId: string | undefined,
+) {
+  return useQuery({
+    queryKey: qk.categoryJudges(competitionId ?? "", categoryId ?? ""),
+    enabled: Boolean(competitionId && categoryId),
+    queryFn: async () => {
+      const res = await api.get<CandidateJudge[]>(
+        `/competitions/${competitionId}/categories/${categoryId}/judges`,
+      );
+      return res.data;
+    },
+  });
+}
+
+export function useSetCategoryJudges(
+  competitionId: string,
+  categoryId: string,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (judgeIds: string[]) => {
+      const res = await api.put<CandidateJudge[]>(
+        `/competitions/${competitionId}/categories/${categoryId}/judges`,
+        { judgeIds },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: qk.categoryJudges(competitionId, categoryId),
+      });
       void qc.invalidateQueries({ queryKey: ["candidates"] });
     },
   });
@@ -636,6 +683,19 @@ export function useResults(
       const params: Record<string, string> = { competitionId: competitionId! };
       if (categoryId) params.categoryId = categoryId;
       const res = await api.get<ResultRow[]>("/judging/results", { params });
+      return res.data;
+    },
+  });
+}
+
+export function useCandidateReport(candidateId: string | undefined) {
+  return useQuery({
+    queryKey: qk.candidateReport(candidateId ?? ""),
+    enabled: Boolean(candidateId),
+    queryFn: async () => {
+      const res = await api.get<CandidateReport>(
+        `/judging/results/${candidateId}`,
+      );
       return res.data;
     },
   });

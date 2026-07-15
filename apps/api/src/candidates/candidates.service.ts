@@ -206,19 +206,24 @@ export class CandidatesService {
     return this.listJudges(candidateId);
   }
 
-  /** Bulk-assign a judge to many candidates at once (from the judge's side). */
-  async assignJudgeToCandidates(judgeId: string, candidateIds: string[]) {
-    const judge = await this.prisma.judge.findUnique({ where: { id: judgeId } });
-    if (!judge) throw new NotFoundException("المحكّم غير موجود");
+  /** Bulk-assign one or more judges to many candidates at once. */
+  async assignJudgeToCandidates(judgeIds: string[], candidateIds: string[]) {
+    const uniqueJudges = [...new Set(judgeIds)];
+    const found = await this.prisma.judge.count({
+      where: { id: { in: uniqueJudges } },
+    });
+    if (found !== uniqueJudges.length) {
+      throw new NotFoundException("أحد المحكّمين غير موجود");
+    }
 
+    const uniqueCandidates = [...new Set(candidateIds)];
     await this.prisma.candidateJudge.createMany({
-      data: [...new Set(candidateIds)].map((candidateId) => ({
-        candidateId,
-        judgeId,
-      })),
+      data: uniqueJudges.flatMap((judgeId) =>
+        uniqueCandidates.map((candidateId) => ({ candidateId, judgeId })),
+      ),
       skipDuplicates: true,
     });
-    return { assigned: candidateIds.length };
+    return { assigned: uniqueCandidates.length };
   }
 
   private parseScopeOrThrow(raw: string) {

@@ -47,7 +47,9 @@ export class SetJudgesDto {
 }
 
 export class AssignJudgeDto {
-  @IsString() judgeId!: string;
+  @IsArray()
+  @IsString({ each: true })
+  judgeIds!: string[];
 
   @IsArray()
   @IsString({ each: true })

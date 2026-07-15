@@ -70,8 +70,10 @@ export class CandidatesController {
 
   @Roles(UserRole.ADMIN)
   @Post("assign-judge")
-  @ApiOperation({ summary: "إسناد محكّم إلى مجموعة من المتسابقين دفعةً واحدة" })
+  @ApiOperation({
+    summary: "إسناد محكّم أو أكثر إلى مجموعة من المتسابقين دفعةً واحدة",
+  })
   assignJudge(@Body() dto: AssignJudgeDto) {
-    return this.candidates.assignJudgeToCandidates(dto.judgeId, dto.candidateIds);
+    return this.candidates.assignJudgeToCandidates(dto.judgeIds, dto.candidateIds);
   }
 }

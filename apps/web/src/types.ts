@@ -444,6 +444,44 @@ export interface ResultRow {
   averageScore: number;
 }
 
+export interface CandidateReportQuestion {
+  id: string;
+  label: string;
+  maxScore: number;
+  averageScore: number | null;
+}
+
+export interface CandidateReportCriterion {
+  id: string;
+  labelAr: string;
+  maxPoints: number;
+  averageValue: number | null;
+}
+
+export interface CandidateReportNote {
+  judge: { id: string; fullName: string };
+  notes: string;
+}
+
+export interface CandidateReport {
+  candidate: {
+    id: string;
+    fullName: string;
+    gender: Gender;
+    teacherName: string | null;
+    scopeRaw: string;
+    externalId: number | null;
+    category: { id: string; labelAr: string; hizbCount: number };
+  };
+  competition: { id: string; name: string };
+  judgeCount: number;
+  averageScore: number;
+  hifzBase: number;
+  questions: CandidateReportQuestion[];
+  criteria: CandidateReportCriterion[];
+  notes: CandidateReportNote[];
+}
+
 /* --------------------- Judge ↔ candidate assignment ----------------------- */
 
 /** A judge directly assigned to a candidate (overriding their category). */

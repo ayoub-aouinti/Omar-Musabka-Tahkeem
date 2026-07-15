@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { TAJWEED_CRITERIA } from "./tajweed-criteria";
 import type {
   CreateCompetitionDto,
+  SetCategoryJudgesDto,
   UpdateCompetitionDto,
   UpdateScoringDto,
   UpsertCategoryDto,
@@ -317,5 +318,56 @@ export class CompetitionsService {
       update: dto,
       create: { ...dto, competitionId },
     });
+  }
+
+  private async getCategory(competitionId: string, categoryId: string) {
+    const category = await this.prisma.category.findFirst({
+      where: { id: categoryId, competitionId },
+    });
+    if (!category) throw new NotFoundException("الصنف غير موجود");
+    return category;
+  }
+
+  /** The judge panel seated on a category — the default for its candidates. */
+  async listCategoryJudges(competitionId: string, categoryId: string) {
+    await this.getCategory(competitionId, categoryId);
+    const rows = await this.prisma.categoryJudge.findMany({
+      where: { categoryId },
+      include: { judge: { select: { id: true, fullName: true, gender: true } } },
+      orderBy: { assignedAt: "asc" },
+    });
+    return rows.map((r) => r.judge);
+  }
+
+  /** Replace a category's judge panel — assigns a whole group at once. */
+  async setCategoryJudges(
+    competitionId: string,
+    categoryId: string,
+    dto: SetCategoryJudgesDto,
+  ) {
+    await this.getCategory(competitionId, categoryId);
+
+    const unique = [...new Set(dto.judgeIds)];
+    if (unique.length) {
+      const found = await this.prisma.judge.count({
+        where: { id: { in: unique } },
+      });
+      if (found !== unique.length) {
+        throw new BadRequestException("أحد المحكّمين غير موجود");
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.categoryJudge.deleteMany({ where: { categoryId } }),
+      ...(unique.length
+        ? [
+            this.prisma.categoryJudge.createMany({
+              data: unique.map((judgeId) => ({ categoryId, judgeId })),
+            }),
+          ]
+        : []),
+    ]);
+
+    return this.listCategoryJudges(competitionId, categoryId);
   }
 }

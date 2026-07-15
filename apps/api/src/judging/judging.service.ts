@@ -10,6 +10,7 @@ import {
   type DirectCriterionScore,
   emptyTally,
   type QuestionTally,
+  round2,
 } from "@tahkeem/shared";
 import { CompetitionsService } from "../competitions/competitions.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -393,6 +394,125 @@ export class JudgingService {
               ) / 100,
       }))
       .sort((a, b) => b.averageScore - a.averageScore);
+  }
+
+  /**
+   * A candidate's full report: every question with its (judges'-averaged) hifz
+   * result, every general criterion with its averaged value, and each judge's
+   * free-text notes — the printable card handed to the association.
+   */
+  async candidateReport(candidateId: string) {
+    const candidate = await this.prisma.candidate.findUnique({
+      where: { id: candidateId },
+      include: {
+        category: true,
+        competition: { select: { id: true, name: true } },
+      },
+    });
+    if (!candidate) throw new NotFoundException("المتسابق غير موجود");
+
+    const [sessions, questions, scoring] = await Promise.all([
+      this.prisma.judgingSession.findMany({
+        where: { candidateId, status: JudgingStatus.SUBMITTED },
+        include: {
+          judge: { select: { id: true, fullName: true } },
+          questionResults: true,
+          criterionScores: true,
+        },
+      }),
+      this.questions.listForCandidate(candidateId),
+      this.competitions.getScoringConfig(
+        candidate.competitionId,
+        candidate.category.hizbCount,
+      ),
+    ]);
+
+    const pointsPerQuestion = round2(
+      scoring.hifzBase / candidate.category.questionCount,
+    );
+
+    const passages = await Promise.all(
+      questions.map((q) => this.questions.getPassage(q.id)),
+    );
+    const labelByQuestion = new Map(passages.map((p) => [p.question.id, p.label]));
+
+    const questionRows = questions.map((question) => {
+      const scores = sessions
+        .map((session) => {
+          const result = session.questionResults.find(
+            (r) => r.questionId === question.id,
+          );
+          if (!result) return null;
+          if (result.cancelled) return 0;
+          const deduction =
+            result.fathCount * scoring.weights.fath +
+            result.tanbihCount * scoring.weights.tanbih +
+            result.talathumCount * scoring.weights.talathum;
+          return Math.min(pointsPerQuestion, Math.max(0, pointsPerQuestion - deduction));
+        })
+        .filter((v): v is number => v !== null);
+
+      return {
+        id: question.id,
+        label: labelByQuestion.get(question.id) ?? "",
+        maxScore: pointsPerQuestion,
+        averageScore: scores.length
+          ? round2(scores.reduce((a, b) => a + b, 0) / scores.length)
+          : null,
+      };
+    });
+
+    const criteriaRows = scoring.directCriteria.map((criterion) => {
+      const values = sessions
+        .map(
+          (session) =>
+            session.criterionScores.find((c) => c.criterionId === criterion.id)
+              ?.value,
+        )
+        .filter((v): v is number => v !== undefined);
+
+      return {
+        id: criterion.id,
+        labelAr: criterion.labelAr,
+        maxPoints: criterion.maxPoints,
+        averageValue: values.length
+          ? round2(values.reduce((a, b) => a + b, 0) / values.length)
+          : null,
+      };
+    });
+
+    const notes = sessions
+      .filter((s) => s.notes && s.notes.trim().length > 0)
+      .map((s) => ({ judge: s.judge, notes: s.notes as string }));
+
+    const totalScores = sessions
+      .map((s) => s.totalScore)
+      .filter((v): v is number => v !== null);
+
+    return {
+      candidate: {
+        id: candidate.id,
+        fullName: candidate.fullName,
+        gender: candidate.gender,
+        teacherName: candidate.teacherName,
+        scopeRaw: candidate.scopeRaw,
+        externalId: candidate.externalId,
+        category: {
+          id: candidate.category.id,
+          labelAr: candidate.category.labelAr,
+          hizbCount: candidate.category.hizbCount,
+        },
+      },
+      competition: candidate.competition,
+      judgeCount: sessions.length,
+      averageScore: totalScores.length
+        ? round2(totalScores.reduce((a, b) => a + b, 0) / totalScores.length)
+        : 0,
+      hifzBase: scoring.hifzBase,
+      questions: questionRows,
+      criteria: criteriaRows,
+      notes,
+    };
   }
 
   /** A judge may score a candidate only if explicitly assigned to them. */

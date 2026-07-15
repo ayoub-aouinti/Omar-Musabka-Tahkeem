@@ -15,6 +15,7 @@ import { Roles } from "../common/decorators";
 import { CompetitionsService } from "./competitions.service";
 import {
   CreateCompetitionDto,
+  SetCategoryJudgesDto,
   UpdateCompetitionDto,
   UpdateScoringDto,
   UpsertCategoryDto,
@@ -74,6 +75,26 @@ export class CompetitionsController {
   @Put(":id/categories")
   upsertCategory(@Param("id") id: string, @Body() dto: UpsertCategoryDto) {
     return this.competitions.upsertCategory(id, dto);
+  }
+
+  @Get(":id/categories/:categoryId/judges")
+  @ApiOperation({ summary: "المحكّمون المُسنَدون إلى صنف (مجموعة مشاركين)" })
+  categoryJudges(
+    @Param("id") id: string,
+    @Param("categoryId") categoryId: string,
+  ) {
+    return this.competitions.listCategoryJudges(id, categoryId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Put(":id/categories/:categoryId/judges")
+  @ApiOperation({ summary: "تعيين محكّمي صنف كامل دفعةً واحدة" })
+  setCategoryJudges(
+    @Param("id") id: string,
+    @Param("categoryId") categoryId: string,
+    @Body() dto: SetCategoryJudgesDto,
+  ) {
+    return this.competitions.setCategoryJudges(id, categoryId, dto);
   }
 
   @Roles(UserRole.ADMIN)

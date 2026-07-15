@@ -72,14 +72,22 @@ function BulkAssignModal({
   const debounced = useDebounce(search);
   const judges = useJudges(debounced);
   const assign = useBulkAssignJudge();
-  const [judgeId, setJudgeId] = useState("");
+  const [judgeIds, setJudgeIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedSet = useMemo(() => new Set(judgeIds), [judgeIds]);
+
+  function toggle(id: string) {
+    setJudgeIds((list) =>
+      list.includes(id) ? list.filter((x) => x !== id) : [...list, id],
+    );
+  }
+
   async function submit() {
-    if (!judgeId) return;
+    if (judgeIds.length === 0) return;
     setError(null);
     try {
-      const res = await assign.mutateAsync({ judgeId, candidateIds });
+      const res = await assign.mutateAsync({ judgeIds, candidateIds });
       onDone(res.assigned);
     } catch (err) {
       setError(apiErrorMessage(err));
@@ -95,8 +103,8 @@ function BulkAssignModal({
           </Banner>
         ) : null}
         <p className="font-body-md text-sm text-on-surface-variant">
-          سيُسنَد المحكّم المختار إلى {toDisplayDigits(candidateIds.length)}{" "}
-          مشاركًا، فلا يُقيّمهم غيره.
+          سيُسنَد المحكّم أو المحكّمون المختارون إلى{" "}
+          {toDisplayDigits(candidateIds.length)} مشاركًا، فلا يُقيّمهم غيرهم.
         </p>
         <div className="relative">
           <Icon
@@ -127,10 +135,9 @@ function BulkAssignModal({
                 <li key={judge.id}>
                   <label className="flex cursor-pointer items-center gap-3 border-b border-outline-variant/50 px-3 py-2 last:border-b-0 hover:bg-surface-container/50">
                     <input
-                      type="radio"
-                      name="bulk-judge"
-                      checked={judgeId === judge.id}
-                      onChange={() => setJudgeId(judge.id)}
+                      type="checkbox"
+                      checked={selectedSet.has(judge.id)}
+                      onChange={() => toggle(judge.id)}
                       className="h-4 w-4 accent-primary"
                     />
                     <span className="font-body-md text-sm text-on-surface">
@@ -145,18 +152,25 @@ function BulkAssignModal({
             </ul>
           )}
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button
-            icon="how_to_reg"
-            loading={assign.isPending}
-            disabled={!judgeId}
-            onClick={submit}
-          >
-            إسناد
-          </Button>
+        <div className="flex items-center justify-between">
+          <Chip className="bg-surface-container-highest text-on-surface-variant">
+            {judgeIds.length === 0
+              ? "لم يُحدَّد محكّم"
+              : `${toDisplayDigits(judgeIds.length)} محكّم`}
+          </Chip>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose}>
+              إلغاء
+            </Button>
+            <Button
+              icon="how_to_reg"
+              loading={assign.isPending}
+              disabled={judgeIds.length === 0}
+              onClick={submit}
+            >
+              إسناد
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>

@@ -1,15 +1,20 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toDisplayDigits } from "@tahkeem/shared";
 import {
+  useCategoryJudges,
   useCompetition,
   useGenerateCategoryQuestions,
+  useJudges,
+  useSetCategoryJudges,
   useUpsertCategory,
 } from "../hooks";
 import { apiErrorMessage } from "../lib/api";
+import { useDebounce } from "../lib/useDebounce";
 import {
   AMOUNT_UNITS,
   AMOUNT_UNIT_LABELS,
+  GENDER_LABELS,
   STATUS_CHIP,
   STATUS_LABELS,
   formatAmount,
@@ -21,11 +26,182 @@ import {
   Card,
   Chip,
   ErrorState,
+  Icon,
   Input,
+  Modal,
   Select,
   Skeleton,
 } from "../components/ui";
 import type { AmountUnit, Category, CategoryGenerateResult } from "../types";
+
+/**
+ * Assign a whole class of candidates to one or more judges at once — the
+ * default seat every candidate in this category is open to, unless a
+ * candidate has its own explicit judges (see CandidateDrawer's JudgeAssignment).
+ */
+function CategoryJudgesModal({
+  category,
+  competitionId,
+  onClose,
+}: {
+  category: Category;
+  competitionId: string;
+  onClose: () => void;
+}) {
+  const assigned = useCategoryJudges(competitionId, category.id);
+  const setJudges = useSetCategoryJudges(competitionId, category.id);
+  const [search, setSearch] = useState("");
+  const debounced = useDebounce(search);
+  const judges = useJudges(debounced);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (assigned.data) setSelected(assigned.data.map((j) => j.id));
+  }, [assigned.data]);
+
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+
+  function toggle(id: string) {
+    setSelected((list) =>
+      list.includes(id) ? list.filter((x) => x !== id) : [...list, id],
+    );
+  }
+
+  async function save() {
+    setFeedback(null);
+    try {
+      const next = await setJudges.mutateAsync(selected);
+      setFeedback(
+        next.length === 0
+          ? "أُصبح الصنف بلا محكّمين معيّنين."
+          : `تم تعيين ${toDisplayDigits(next.length)} محكّمًا لصنف «${category.labelAr}».`,
+      );
+    } catch (err) {
+      setFeedback(apiErrorMessage(err));
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`محكّمو صنف «${category.labelAr}»`}
+      className="max-w-md"
+    >
+      <div className="flex flex-col gap-4">
+        <p className="font-body-md text-sm text-on-surface-variant">
+          كلّ محكّم هنا يُقيّم جميع مشاركي هذا الصنف، ما لم يُسنَد لمشارك محكّمون
+          خاصّون به من بطاقته.
+        </p>
+
+        {feedback ? (
+          <Banner tone="info" onDismiss={() => setFeedback(null)}>
+            {feedback}
+          </Banner>
+        ) : null}
+
+        {assigned.isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="relative">
+              <Icon
+                name="search"
+                className="pointer-events-none absolute inset-y-0 end-3 my-auto text-[20px] text-on-surface-variant"
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ابحث عن محكّم…"
+                className="w-full pe-10"
+              />
+            </div>
+
+            <div className="max-h-60 overflow-auto rounded-lg border border-outline-variant">
+              {judges.isLoading ? (
+                <div className="space-y-2 p-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-8 w-full" />
+                  ))}
+                </div>
+              ) : !judges.data || judges.data.length === 0 ? (
+                <p className="p-4 text-center font-body-md text-sm text-on-surface-variant">
+                  لا يوجد محكّمون مطابقون.
+                </p>
+              ) : (
+                <ul>
+                  {judges.data.map((judge) => (
+                    <li key={judge.id}>
+                      <label className="flex cursor-pointer items-center gap-3 border-b border-outline-variant/50 px-3 py-2 last:border-b-0 hover:bg-surface-container/50">
+                        <input
+                          type="checkbox"
+                          checked={selectedSet.has(judge.id)}
+                          onChange={() => toggle(judge.id)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        <span className="font-body-md text-sm text-on-surface">
+                          {judge.fullName}
+                        </span>
+                        <span className="font-body-md text-xs text-on-surface-variant">
+                          {GENDER_LABELS[judge.gender]}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Chip className="bg-surface-container-highest text-on-surface-variant">
+                  {selected.length === 0
+                    ? "بلا محكّمين"
+                    : `${toDisplayDigits(selected.length)} محكّم`}
+                </Chip>
+                {judges.data && judges.data.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelected((list) => [
+                        ...new Set([...list, ...judges.data!.map((j) => j.id)]),
+                      ])
+                    }
+                    className="font-label-md text-xs text-on-surface-variant underline hover:text-on-surface"
+                  >
+                    تعيين الكلّ
+                  </button>
+                ) : null}
+                {selected.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelected([])}
+                    className="font-label-md text-xs text-on-surface-variant underline hover:text-on-surface"
+                  >
+                    رفع التعيين عن الكلّ
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={onClose}>
+                  إغلاق
+                </Button>
+                <Button
+                  icon="save"
+                  loading={setJudges.isPending}
+                  onClick={save}
+                >
+                  حفظ التعيين
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
 
 interface RowDraft {
   hizbCount: number;
@@ -52,6 +228,7 @@ function CategoryRow({
   });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [genResult, setGenResult] = useState<CategoryGenerateResult | null>(null);
+  const [judgesOpen, setJudgesOpen] = useState(false);
 
   const upsert = useUpsertCategory(competitionId);
   const generate = useGenerateCategoryQuestions();
@@ -200,6 +377,13 @@ function CategoryRow({
                   تعديل
                 </Button>
                 <Button
+                  variant="outline"
+                  icon="how_to_reg"
+                  onClick={() => setJudgesOpen(true)}
+                >
+                  محكّمو الصنف
+                </Button>
+                <Button
                   variant="primary"
                   icon="auto_awesome"
                   loading={generate.isPending}
@@ -212,6 +396,13 @@ function CategoryRow({
           </div>
         </td>
       </tr>
+      {judgesOpen ? (
+        <CategoryJudgesModal
+          category={category}
+          competitionId={competitionId}
+          onClose={() => setJudgesOpen(false)}
+        />
+      ) : null}
       {(feedback || genResult) && (
         <tr>
           <td colSpan={6} className="px-4 pb-4">

@@ -100,3 +100,10 @@ export class UpsertCategoryDto {
   @IsString() amountUnit!: string;
   @IsInt() @Min(1) amountValue!: number;
 }
+
+/** Replaces the full judge panel seated on a category (the group default). */
+export class SetCategoryJudgesDto {
+  @IsArray()
+  @IsString({ each: true })
+  judgeIds!: string[];
+}
