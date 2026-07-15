@@ -120,7 +120,8 @@ function PrintSheet({
           مرجع البطاقة: {displayCode}
         </p>
         <p style={{ fontSize: "9pt", marginTop: "5mm", color: "#5f5e5e" }}>
-          يُستعمل مرّة واحدة فقط — بالمسح أو بالرمز، لا بكليهما. لا تشاركه مع أحد.
+          صالح لعدّة دخول حتّى تاريخ الانتهاء — بالمسح أو بالرمز. لا تشاركه مع
+          أحد.
         </p>
       </div>
     </div>,
@@ -128,25 +129,19 @@ function PrintSheet({
   );
 }
 
+/**
+ * The backend already only returns un-revoked, un-expired sessions here, so
+ * any entry means the judge has a live, reusable card — `consumedAt` is just
+ * the last-login timestamp, not a terminal state.
+ */
 function sessionState(judge: Judge): {
   label: string;
   className: string;
 } {
-  const now = Date.now();
-  const active = judge.accessSessions.find(
-    (s) => !s.consumedAt && new Date(s.expiresAt).getTime() > now,
-  );
-  if (active) {
+  if (judge.accessSessions.length > 0) {
     return {
       label: "جلسة نشطة",
       className: "bg-primary-container text-on-primary",
-    };
-  }
-  const consumed = judge.accessSessions.some((s) => s.consumedAt);
-  if (consumed) {
-    return {
-      label: "مُستخدَم",
-      className: "bg-secondary-container text-on-secondary-container",
     };
   }
   return {
@@ -347,8 +342,9 @@ function AccessModal({
           </div>
 
           <Banner tone="info">
-            رمز التحقّق ورمز QR يُعرَضان مرّة واحدة فقط، ويُستعمل أحدهما لا كلاهما.
-            اطبع البطاقة أو سلّمها للمحكّم الآن.
+            رمز التحقّق ورمز QR يُعرَضان هنا مرّة واحدة فقط ولا يمكن استرجاعهما
+            لاحقًا، لكنّهما صالحان لعدّة عمليّات دخول حتّى تاريخ الانتهاء. اطبع
+            البطاقة أو سلّمها للمحكّم الآن.
           </Banner>
 
           <div className="flex justify-end gap-2">
@@ -443,9 +439,7 @@ export function JudgesPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function revokeActive(judge: Judge) {
-    const active = judge.accessSessions.find(
-      (s) => !s.consumedAt && new Date(s.expiresAt).getTime() > Date.now(),
-    );
+    const active = judge.accessSessions[0];
     if (!active) return;
     setError(null);
     try {

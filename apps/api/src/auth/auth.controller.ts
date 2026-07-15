@@ -22,7 +22,7 @@ export class AuthController {
   @Public()
   @Post("qr")
   @HttpCode(200)
-  @ApiOperation({ summary: "تسجيل دخول المحكّم عبر مسح رمز QR (استعمال واحد)" })
+  @ApiOperation({ summary: "تسجيل دخول المحكّم عبر مسح رمز QR" })
   qrLogin(@Body() dto: QrLoginDto) {
     return this.auth.loginWithQr(dto.token);
   }
@@ -30,7 +30,7 @@ export class AuthController {
   @Public()
   @Post("code")
   @HttpCode(200)
-  @ApiOperation({ summary: "تسجيل دخول المحكّم برمز التحقّق (استعمال واحد)" })
+  @ApiOperation({ summary: "تسجيل دخول المحكّم برمز التحقّق" })
   codeLogin(@Body() dto: CodeLoginDto, @Req() request: Request) {
     // Throttle per client so an 8-character code cannot be brute-forced.
     const clientKey = request.ip ?? "unknown";

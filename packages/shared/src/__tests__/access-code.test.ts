@@ -27,8 +27,9 @@ describe("normalizeAccessCode", () => {
   });
 
   it("does not guess at look-alike glyphs", () => {
-    // An `O` could be a misread Q or D; rewriting it would burn the single use
-    // on the wrong code. It survives normalisation and then fails the shape test.
+    // An `O` could be a misread Q or D; rewriting it would waste a throttled
+    // attempt on the wrong code. It survives normalisation and then fails the
+    // shape test.
     expect(normalizeAccessCode("OOOO-OOOO")).toBe("OOOOOOOO");
     expect(isAccessCodeShaped("OOOO-OOOO")).toBe(false);
   });

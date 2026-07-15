@@ -63,8 +63,9 @@ model Judge {
 /// A short-lived credential handed to a judge, carrying two equivalent secrets:
 /// the long token inside the QR code, and a short `رمز التحقّق` the judge can
 /// type when the camera will not cooperate. Only SHA-256 hashes are stored, so a
-/// database leak cannot be replayed. Single-use: redeeming *either* secret
-/// stamps `consumedAt` and retires the whole credential.
+/// database leak cannot be replayed. Reusable until it expires or is revoked:
+/// redeeming *either* secret stamps `consumedAt` with the latest use, but does
+/// not retire the credential — a judge may log in again on the same card.
 model JudgeAccess {
   id            String    @id @default(cuid())
   judgeId       String
@@ -76,6 +77,7 @@ model JudgeAccess {
   /// Non-secret reference (e.g. QX-9902) so support can identify a card.
   displayCode   String
   expiresAt     DateTime
+  /// Most recent successful redemption, for display only — not a single-use gate.
   consumedAt    DateTime?
   revokedAt     DateTime?
   createdAt     DateTime  @default(now())

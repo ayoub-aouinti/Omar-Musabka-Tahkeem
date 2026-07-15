@@ -5,8 +5,9 @@
     python scripts/smoke.py            # in another
 
 Walks the real judging flow and asserts the invariants that matter:
-the scoring formula, single-use QR credentials, immutable results, and a
-scoring configuration that freezes once a result has been submitted.
+the scoring formula, reusable-until-expiry QR credentials, immutable
+results, and a scoring configuration that freezes once a result has been
+submitted.
 
 Written in Python rather than curl+bash because the Windows shell mangles
 Arabic query strings into cp1256.
@@ -162,13 +163,12 @@ def main() -> None:
     jtoken = judge_auth["accessToken"]
     check("judge logs in by QR", judge_auth["user"]["role"] == "JUDGE")
 
-    expect_error(
-        "the same QR cannot be replayed",
-        lambda: call("/auth/qr", "POST", {"token": access["token"]}),
-    )
-    expect_error(
-        "redeeming the QR also burns its verification code",
-        lambda: call("/auth/code", "POST", {"code": access["accessCode"]}),
+    replay = call("/auth/qr", "POST", {"token": access["token"]})
+    check("the same QR can be scanned again", replay["user"]["role"] == "JUDGE")
+    code_auth = call("/auth/code", "POST", {"code": access["accessCode"]})
+    check(
+        "its verification code still works too",
+        code_auth["user"]["role"] == "JUDGE",
     )
     expect_error("judge cannot reach admin routes", lambda: call("/judges", token=jtoken))
 
@@ -185,13 +185,15 @@ def main() -> None:
     check("judge logs in by typed code", coded_auth["user"]["role"] == "JUDGE")
     check("and is bound to the competition", coded_auth["user"]["competitionId"] == cid)
 
-    expect_error(
-        "the code is single-use",
-        lambda: call("/auth/code", "POST", {"code": code}),
+    coded_auth_again = call("/auth/code", "POST", {"code": code})
+    check(
+        "the credential is reusable until it expires",
+        coded_auth_again["user"]["role"] == "JUDGE",
     )
-    expect_error(
-        "and its QR token is burned with it",
-        lambda: call("/auth/qr", "POST", {"token": card["token"]}),
+    qr_still_works = call("/auth/qr", "POST", {"token": card["token"]})
+    check(
+        "its QR token still works too",
+        qr_still_works["user"]["role"] == "JUDGE",
     )
 
     print("\nbrute-force throttling")

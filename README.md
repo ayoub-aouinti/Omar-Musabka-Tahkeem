@@ -90,11 +90,11 @@ Judges have no password. An admin issues a temporary card for a competition, car
 | **QR code** | a 256-bit token | unguessable |
 | **رمز التحقّق** | 8 characters, `ABCD-EFGH` | ~10¹² |
 
-Only SHA-256 hashes are stored, so a database leak cannot be replayed. Redeeming **either** secret retires the whole card — `consumedAt` is stamped under a conditional update, so two phones racing the same card cannot both win.
+Only SHA-256 hashes are stored, so a database leak cannot be replayed. The card stays valid for repeated logins until it expires or is revoked — redeeming either secret just stamps `consumedAt` with the latest use, for display only.
 
-The typed code is short enough to be worth guessing, so it leans on three defences together: the card is single-use, it expires within hours, and the API caps attempts at 6 per client per 15 minutes. Lengthening the expiry without revisiting that trade-off would be a mistake.
+The typed code is short enough to be worth guessing, so it leans on two defences together: it expires within hours, and the API caps attempts at 6 per client per 15 minutes. Lengthening the expiry without revisiting that trade-off would be a mistake.
 
-The code's alphabet omits `0 O 1 I L`. A character outside the alphabet is **rejected**, never remapped: an `O` could be a misread `Q` or `D`, and guessing would burn the single use on the wrong code.
+The code's alphabet omits `0 O 1 I L`. A character outside the alphabet is **rejected**, never remapped: an `O` could be a misread `Q` or `D`, and guessing would waste a throttled attempt on the wrong code.
 
 Issuing a new card revokes the judge's previous live one, and the JWT never outlives the card that minted it.
 

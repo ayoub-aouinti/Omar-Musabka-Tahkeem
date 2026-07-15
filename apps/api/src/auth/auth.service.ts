@@ -78,9 +78,10 @@ export class AuthService {
   /**
    * Exchange a scanned QR token for a judge access token.
    *
-   * The credential is single-use: the first successful scan stamps `consumedAt`.
-   * A second scan of the same card is rejected, so a photographed QR cannot be
-   * replayed by someone else.
+   * The credential stays valid for repeated logins until it expires or is
+   * revoked — a judge may lose their session (app closed, phone died) and
+   * scan the same card again. Each successful scan stamps `consumedAt` with
+   * the most recent use, for display only; it does not gate future logins.
    */
   loginWithQr(token: string): Promise<AuthResult> {
     return this.redeem({ tokenHash: hashToken(token) });
@@ -91,9 +92,8 @@ export class AuthService {
    * the camera will not read the card.
    *
    * The code is only 8 characters, so unlike the QR token it is within reach of
-   * a guessing attack. Three defences, all required: the credential is
-   * single-use, it expires within hours, and `assertNotThrottled` caps attempts
-   * per client.
+   * a guessing attack. Two defences: it expires within hours, and
+   * `assertNotThrottled` caps attempts per client.
    */
   async loginWithCode(rawCode: string, clientKey: string): Promise<AuthResult> {
     this.assertNotThrottled(clientKey);
@@ -125,22 +125,15 @@ export class AuthService {
 
     if (!access) throw new UnauthorizedException("رمز الدخول غير صالح");
     if (access.revokedAt) throw new UnauthorizedException("تم إلغاء هذا الرمز");
-    if (access.consumedAt) {
-      throw new UnauthorizedException("تم استعمال هذا الرمز من قبل");
-    }
     if (access.expiresAt <= new Date()) {
       throw new UnauthorizedException("انتهت صلاحية الرمز");
     }
 
-    // Redeeming either secret retires the whole credential.
-    const claimed = await this.prisma.judgeAccess.updateMany({
-      where: { id: access.id, consumedAt: null },
+    // Informational only — the most recent use, not a single-use gate.
+    await this.prisma.judgeAccess.update({
+      where: { id: access.id },
       data: { consumedAt: new Date() },
     });
-    // Two devices racing the same card: only the one that flipped the row wins.
-    if (claimed.count === 0) {
-      throw new UnauthorizedException("تم استعمال هذا الرمز من قبل");
-    }
 
     const payload: JwtPayload = {
       sub: access.judgeId,

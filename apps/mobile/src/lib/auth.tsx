@@ -82,9 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
-   * Judges authenticate with the single-use credential on their printed card —
-   * scanned, or typed when the camera will not read it. There are no passwords
-   * on this app; the password endpoint exists for admins on the web dashboard.
+   * Judges authenticate with the credential on their printed card — scanned,
+   * or typed when the camera will not read it. It stays valid for repeated
+   * logins until it expires or is revoked. There are no passwords on this
+   * app; the password endpoint exists for admins on the web dashboard.
    */
   const loginWithCode = useCallback(
     async (code: string) => {

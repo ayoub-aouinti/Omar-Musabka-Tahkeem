@@ -111,14 +111,14 @@ export class JudgesService {
     if (!competition) throw new NotFoundException("المسابقة غير موجودة");
 
     await this.prisma.judgeAccess.updateMany({
-      where: { judgeId, competitionId, revokedAt: null, consumedAt: null },
+      where: { judgeId, competitionId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
 
     // 256 bits of entropy: unguessable, and only its hash is persisted.
     const token = randomBytes(32).toString("base64url");
     // Short enough to type off a printed card; safe only because the credential
-    // is single-use, short-lived, and guesses are throttled in AuthService.
+    // is short-lived and guesses are throttled in AuthService.
     const accessCode = generateAccessCode();
     const displayCode = `QX-${randomInt(1000, 9999)}`;
     const expiresAt = new Date(Date.now() + hours * 3600 * 1000);
