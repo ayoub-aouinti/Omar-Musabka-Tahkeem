@@ -235,9 +235,26 @@ function CategoryRow({
 
   async function save() {
     setFeedback(null);
+    setGenResult(null);
     try {
       await upsert.mutateAsync(draft);
       setEditing(false);
+
+      // Question count/amount changed: the papers already drawn for this
+      // category's candidates no longer match, so regenerate them for
+      // everyone right away instead of waiting for a manual click.
+      const questionSettingsChanged =
+        draft.questionCount !== category.questionCount ||
+        draft.amountUnit !== category.amountUnit ||
+        draft.amountValue !== category.amountValue;
+
+      if (questionSettingsChanged) {
+        const result = await generate.mutateAsync({
+          categoryId: category.id,
+          regenerate: true,
+        });
+        setGenResult(result);
+      }
     } catch (error) {
       setFeedback(apiErrorMessage(error));
     }
@@ -348,7 +365,11 @@ function CategoryRow({
           <div className="flex items-center justify-end gap-2">
             {editing ? (
               <>
-                <Button variant="primary" loading={upsert.isPending} onClick={save}>
+                <Button
+                  variant="primary"
+                  loading={upsert.isPending || generate.isPending}
+                  onClick={save}
+                >
                   حفظ
                 </Button>
                 <Button
