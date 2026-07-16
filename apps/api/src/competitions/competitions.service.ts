@@ -10,6 +10,7 @@ import { TAJWEED_CRITERIA } from "./tajweed-criteria";
 import type {
   CreateCompetitionDto,
   SetCategoryJudgesDto,
+  UpdateAutoCancelDto,
   UpdateCompetitionDto,
   UpdateScoringDto,
   UpsertCategoryDto,
@@ -205,11 +206,6 @@ export class CompetitionsService {
         data: dto.penaltyRules.map((r) => ({ ...r, competitionId: id })),
       });
 
-      await tx.competition.update({
-        where: { id },
-        data: { autoCancelFathThreshold: dto.autoCancelFathThreshold ?? null },
-      });
-
       return tx.competition.findUnique({
         where: { id },
         include: {
@@ -225,6 +221,21 @@ export class CompetitionsService {
           penaltyRules: true,
         },
       });
+    });
+  }
+
+  /**
+   * The فتح auto-cancel threshold is exempt from `updateScoring`'s submitted-
+   * results lock: it never rewrites an already-submitted result — those rows
+   * already have their `cancelled` flag resolved and stored from submit time
+   * — so it may be changed at any point in the competition, affecting only
+   * sessions not yet submitted.
+   */
+  async updateAutoCancelThreshold(id: string, dto: UpdateAutoCancelDto) {
+    await this.get(id);
+    return this.prisma.competition.update({
+      where: { id },
+      data: { autoCancelFathThreshold: dto.autoCancelFathThreshold ?? null },
     });
   }
 

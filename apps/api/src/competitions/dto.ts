@@ -91,11 +91,14 @@ export class UpdateScoringDto {
   @ValidateNested({ each: true })
   @Type(() => PenaltyRuleDto)
   penaltyRules!: PenaltyRuleDto[];
+}
 
-  /**
-   * فتح threshold for the auto-cancel rule (see PenaltyRuleDto's kinds for
-   * what counts as an error). Null/omitted disables the rule.
-   */
+/**
+ * The فتح auto-cancel threshold is exempt from the criteria/weights lock: it
+ * never rewrites an already-submitted result (those already have their
+ * `cancelled` flag resolved and stored), so it may be changed at any time.
+ */
+export class UpdateAutoCancelDto {
   @IsOptional()
   @IsInt()
   @Min(1)

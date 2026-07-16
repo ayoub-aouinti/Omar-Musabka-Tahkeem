@@ -153,6 +153,28 @@ export function useUpdateScoring(competitionId: string) {
   });
 }
 
+/**
+ * Saves only the فتح auto-cancel threshold. Unlike `useUpdateScoring`, this
+ * is never locked by submitted results — it can't rewrite an already-graded
+ * question, only affect ones not yet submitted.
+ */
+export function useUpdateAutoCancel(competitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (autoCancelFathThreshold: number | null) => {
+      const res = await api.put<ScoringConfig>(
+        `/competitions/${competitionId}/scoring/auto-cancel`,
+        { autoCancelFathThreshold },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.scoring(competitionId) });
+      void qc.invalidateQueries({ queryKey: qk.competition(competitionId) });
+    },
+  });
+}
+
 /* -------------------------------------------------------------------------- */
 /*                                 Categories                                  */
 /* -------------------------------------------------------------------------- */

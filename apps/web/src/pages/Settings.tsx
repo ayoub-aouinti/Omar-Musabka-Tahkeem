@@ -5,7 +5,7 @@ import {
   round2,
   toDisplayDigits,
 } from "@tahkeem/shared";
-import { useCompetition, useUpdateScoring } from "../hooks";
+import { useCompetition, useUpdateAutoCancel, useUpdateScoring } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
 import { apiErrorMessage } from "../lib/api";
 import {
@@ -71,6 +71,7 @@ export function SettingsPage() {
   const { selectedId } = useSelectedCompetition();
   const competition = useCompetition(selectedId ?? undefined);
   const update = useUpdateScoring(selectedId ?? "");
+  const updateAutoCancel = useUpdateAutoCancel(selectedId ?? "");
 
   const [penaltyCriterion, setPenaltyCriterion] = useState<Criterion | null>(
     null,
@@ -81,6 +82,10 @@ export function SettingsPage() {
   const [penalties, setPenalties] = useState<PenaltyDraft[]>([]);
   const [autoCancelEnabled, setAutoCancelEnabled] = useState(false);
   const [autoCancelThreshold, setAutoCancelThreshold] = useState(3);
+  const [autoCancelError, setAutoCancelError] = useState<string | null>(null);
+  const [autoCancelSuccess, setAutoCancelSuccess] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
@@ -281,9 +286,6 @@ export function SettingsPage() {
         labelAr: p.labelAr,
         weight: Number(p.weight),
       })),
-      autoCancelFathThreshold: autoCancelEnabled
-        ? Number(autoCancelThreshold)
-        : null,
     };
 
     try {
@@ -294,6 +296,24 @@ export function SettingsPage() {
       // A 400 here means a result was already submitted — lock the form.
       setError(apiErrorMessage(err));
       setLocked(true);
+    }
+  }
+
+  /**
+   * Saved separately from `submit()`: this never rewrites an already-graded
+   * question, so it stays editable even once the rest of the form is locked.
+   */
+  async function submitAutoCancel() {
+    if (!selectedId) return;
+    setAutoCancelError(null);
+    setAutoCancelSuccess(null);
+    try {
+      await updateAutoCancel.mutateAsync(
+        autoCancelEnabled ? Number(autoCancelThreshold) : null,
+      );
+      setAutoCancelSuccess("تم حفظ إعداد الإلغاء التلقائي بنجاح.");
+    } catch (err) {
+      setAutoCancelError(apiErrorMessage(err));
     }
   }
 
@@ -432,13 +452,31 @@ export function SettingsPage() {
             </h2>
             <p className="mb-4 font-body-md text-sm text-on-surface-variant">
               اختياري: إلغاء السؤال مباشرةً إذا سُجِّل أيّ خطأ (فتح، تنبيه، أو
-              تلعثم) بعد بلوغ عدد الفتحات الحدّ المحدَّد.
+              تلعثم) بعد بلوغ عدد الفتحات الحدّ المحدَّد. هذا الإعداد مستقلّ عن
+              بقية المعايير — يبقى قابلًا للتعديل حتى بعد اعتماد نتائج، لأنّه
+              لا يُغيّر أي سؤال سبق تقييمه واعتماده.
             </p>
+            {autoCancelError ? (
+              <div className="mb-3">
+                <Banner tone="error" onDismiss={() => setAutoCancelError(null)}>
+                  {autoCancelError}
+                </Banner>
+              </div>
+            ) : null}
+            {autoCancelSuccess ? (
+              <div className="mb-3">
+                <Banner
+                  tone="success"
+                  onDismiss={() => setAutoCancelSuccess(null)}
+                >
+                  {autoCancelSuccess}
+                </Banner>
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 font-body-md text-sm text-on-surface">
                 <input
                   type="checkbox"
-                  disabled={locked}
                   checked={autoCancelEnabled}
                   onChange={(e) => setAutoCancelEnabled(e.target.checked)}
                   className="h-4 w-4 rounded border-outline-variant"
@@ -454,7 +492,6 @@ export function SettingsPage() {
                     type="number"
                     min={1}
                     step="1"
-                    disabled={locked}
                     value={autoCancelThreshold}
                     onChange={(e) =>
                       setAutoCancelThreshold(
@@ -471,6 +508,14 @@ export function SettingsPage() {
                 {autoCancelMessage(autoCancelThreshold)}
               </p>
             ) : null}
+            <Button
+              className="mt-4"
+              icon="save"
+              loading={updateAutoCancel.isPending}
+              onClick={submitAutoCancel}
+            >
+              حفظ إعداد الإلغاء التلقائي
+            </Button>
           </Card>
 
           <Card className="p-6">

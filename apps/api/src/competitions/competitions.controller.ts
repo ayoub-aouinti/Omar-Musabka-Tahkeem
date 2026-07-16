@@ -16,6 +16,7 @@ import { CompetitionsService } from "./competitions.service";
 import {
   CreateCompetitionDto,
   SetCategoryJudgesDto,
+  UpdateAutoCancelDto,
   UpdateCompetitionDto,
   UpdateScoringDto,
   UpsertCategoryDto,
@@ -69,6 +70,16 @@ export class CompetitionsController {
   @ApiOperation({ summary: "تعديل المعايير — مرفوض بعد اعتماد أي نتيجة" })
   updateScoring(@Param("id") id: string, @Body() dto: UpdateScoringDto) {
     return this.competitions.updateScoring(id, dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Put(":id/scoring/auto-cancel")
+  @ApiOperation({
+    summary:
+      "إعدادات إلغاء السؤال تلقائيًا (فتح) — غير مقفولة بعد اعتماد النتائج",
+  })
+  updateAutoCancel(@Param("id") id: string, @Body() dto: UpdateAutoCancelDto) {
+    return this.competitions.updateAutoCancelThreshold(id, dto);
   }
 
   @Roles(UserRole.ADMIN)

@@ -159,8 +159,6 @@ export interface ScoringPenaltyInput {
 export interface ScoringUpdate {
   criteria: ScoringCriterionInput[];
   penaltyRules: ScoringPenaltyInput[];
-  /** فتح threshold for the auto-cancel rule; omit/null to disable it. */
-  autoCancelFathThreshold?: number | null;
 }
 
 export interface CategoryUpsert {

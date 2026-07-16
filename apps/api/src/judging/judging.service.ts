@@ -473,19 +473,11 @@ export class JudgingService {
             (r) => r.questionId === question.id,
           );
           if (!result) return null;
-          if (
-            result.cancelled ||
-            isAutoCancelTriggered(
-              {
-                talathum: result.talathumCount,
-                tanbih: result.tanbihCount,
-                fath: result.fathCount,
-                cancelled: result.cancelled,
-              },
-              scoring.autoCancelFathThreshold,
-            )
-          )
-            return 0;
+          // `cancelled` was already resolved (manual or auto-cancel) at submit
+          // time and stored — re-checking against the *current* config here
+          // would let a later threshold change retroactively alter an
+          // already-submitted, already-reported result.
+          if (result.cancelled) return 0;
           const deduction =
             result.fathCount * scoring.weights.fath +
             result.tanbihCount * scoring.weights.tanbih +
