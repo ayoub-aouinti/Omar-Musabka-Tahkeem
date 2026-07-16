@@ -137,6 +137,11 @@ model Competition {
   /// Seed for the deterministic question draw, so a paper can be regenerated.
   drawSeed Int @default(1)
 
+  /// فتح threshold for the auto-cancel rule: once a question's فتح count
+  /// reaches this, any further error (another فتح, or a تنبيه/تلعثم) writes
+  /// the question off (ملغى) automatically. Null disables the rule.
+  autoCancelFathThreshold Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

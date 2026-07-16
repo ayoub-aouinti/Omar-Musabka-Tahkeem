@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import {
+  autoCancelMessage,
   computeCompetitionScore,
   emptyTally,
+  isAutoCancelTriggered,
   type CompetitionScore,
   type QuestionTally,
 } from "@tahkeem/shared";
@@ -23,6 +25,9 @@ export interface ScoringState {
   allQuestionsConfirmed: boolean;
   /** Every general criterion has an explicit value. Required to finalize. */
   allCriteriaScored: boolean;
+  /** Set right after `setCount` auto-cancels a question via the فتح threshold rule. */
+  autoCancelAlert: string | null;
+  dismissAutoCancelAlert: () => void;
   setCount: (questionId: string, key: TallyKey, value: number) => void;
   setCancelled: (questionId: string, cancelled: boolean) => void;
   setCriterion: (criterionId: string, value: number) => void;
@@ -76,6 +81,7 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     initCriteria(data),
   );
   const [notes, setNotes] = useState<string>(data.session.notes ?? "");
+  const [autoCancelAlert, setAutoCancelAlert] = useState<string | null>(null);
 
   // Only a *confirmed* result row counts: a «حفظ كمسودّة» leaves its tallies but
   // confirmed=false, so resuming restores exactly which questions were locked in.
@@ -98,10 +104,16 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     (questionId: string, key: TallyKey, value: number) => {
       setTallies((prev) => {
         const current = prev[questionId] ?? emptyTally();
-        return { ...prev, [questionId]: { ...current, [key]: Math.max(0, value) } };
+        const next: QuestionTally = { ...current, [key]: Math.max(0, value) };
+        const threshold = data.scoring.autoCancelFathThreshold;
+        if (isAutoCancelTriggered(next, threshold)) {
+          next.cancelled = true;
+          if (threshold != null) setAutoCancelAlert(autoCancelMessage(threshold));
+        }
+        return { ...prev, [questionId]: next };
       });
     },
-    [],
+    [data.scoring.autoCancelFathThreshold],
   );
 
   const setCancelled = useCallback((questionId: string, cancelled: boolean) => {
@@ -201,6 +213,8 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     [data.scoring.directCriteria, criteria, notes],
   );
 
+  const dismissAutoCancelAlert = useCallback(() => setAutoCancelAlert(null), []);
+
   return {
     tallies,
     criteria,
@@ -209,6 +223,8 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     confirmed,
     allQuestionsConfirmed,
     allCriteriaScored,
+    autoCancelAlert,
+    dismissAutoCancelAlert,
     setCount,
     setCancelled,
     setCriterion,

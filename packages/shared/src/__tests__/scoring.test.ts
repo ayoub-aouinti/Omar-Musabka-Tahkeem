@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  autoCancelMessage,
   computeCompetitionScore,
   computeHifz,
   DEFAULT_HIFZ_BASE,
   DEFAULT_PENALTY_WEIGHTS,
   emptyTally,
+  isAutoCancelTriggered,
   type QuestionTally,
 } from "../scoring";
 
@@ -84,6 +86,55 @@ describe("computeHifz — the المعايير workbook formula", () => {
 
   it("rejects a question count below one", () => {
     expect(() => computeHifz(hifzInput([], 0))).toThrow(/at least 1/);
+  });
+});
+
+describe("isAutoCancelTriggered — the فتح threshold rule", () => {
+  it("is disabled when no threshold is configured", () => {
+    expect(isAutoCancelTriggered(tally({ fath: 3, tanbih: 5 }), null)).toBe(false);
+    expect(isAutoCancelTriggered(tally({ fath: 3, tanbih: 5 }), undefined)).toBe(
+      false,
+    );
+  });
+
+  it("does not trigger below the threshold", () => {
+    expect(isAutoCancelTriggered(tally({ fath: 2, tanbih: 4 }), 3)).toBe(false);
+  });
+
+  it("does not trigger on the threshold فتح alone", () => {
+    expect(isAutoCancelTriggered(tally({ fath: 3 }), 3)).toBe(false);
+  });
+
+  it("triggers on a further فتح past the threshold", () => {
+    expect(isAutoCancelTriggered(tally({ fath: 4 }), 3)).toBe(true);
+  });
+
+  it("triggers on a تنبيه or تلعثم once the threshold فتح is reached", () => {
+    expect(isAutoCancelTriggered(tally({ fath: 3, tanbih: 1 }), 3)).toBe(true);
+    expect(isAutoCancelTriggered(tally({ fath: 3, talathum: 1 }), 3)).toBe(true);
+  });
+
+  it("does not re-trigger on an already cancelled question", () => {
+    expect(
+      isAutoCancelTriggered(tally({ cancelled: true, fath: 5, tanbih: 5 }), 3),
+    ).toBe(false);
+  });
+
+  it("builds the judge-facing message with the Arabic ordinal", () => {
+    expect(autoCancelMessage(3)).toBe("أي خطأ بعد الفتح الثالث يُلغي السؤال");
+    expect(autoCancelMessage(11)).toBe("أي خطأ بعد الفتح رقم 11 يُلغي السؤال");
+  });
+
+  it("computeHifz auto-cancels a question once the rule triggers", () => {
+    // 2 questions → 30 pts each. Question 1 crosses the threshold (fath=4)
+    // and is written off whole; question 2 stays flawless.
+    const result = computeHifz({
+      ...hifzInput([tally({ fath: 4 }), emptyTally()]),
+      autoCancelFathThreshold: 3,
+    });
+    expect(result.cancelledPenalty).toBe(30);
+    expect(result.fathPenalty).toBe(0);
+    expect(result.score).toBe(30);
   });
 });
 

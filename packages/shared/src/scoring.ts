@@ -27,6 +27,28 @@ export const DEFAULT_PENALTY_WEIGHTS: PenaltyWeights = {
 
 export const DEFAULT_HIFZ_BASE = 60;
 
+const ARABIC_ORDINALS: readonly string[] = [
+  "الأول",
+  "الثاني",
+  "الثالث",
+  "الرابع",
+  "الخامس",
+  "السادس",
+  "السابع",
+  "الثامن",
+  "التاسع",
+  "العاشر",
+];
+
+function ordinalAr(n: number): string {
+  return ARABIC_ORDINALS[n - 1] ?? `رقم ${n}`;
+}
+
+/** The judge-facing message for a configured فتح auto-cancel threshold. */
+export function autoCancelMessage(fathThreshold: number): string {
+  return `أي خطأ بعد الفتح ${ordinalAr(fathThreshold)} يُلغي السؤال`;
+}
+
 /** What the judge tapped for one drawn question. */
 export interface QuestionTally {
   talathum: number;
@@ -43,6 +65,12 @@ export interface HifzInput {
   questionCount: number;
   weights: PenaltyWeights;
   tallies: QuestionTally[];
+  /**
+   * فتح threshold for the auto-cancel rule: once a question's فتح count
+   * reaches this, any further error (another فتح, or a تنبيه/تلعثم) writes
+   * the question off entirely. Null/undefined disables the rule.
+   */
+  autoCancelFathThreshold?: number | null;
 }
 
 export interface HifzBreakdown {
@@ -68,8 +96,24 @@ export function emptyTally(): QuestionTally {
   return { talathum: 0, tanbih: 0, fath: 0, cancelled: false };
 }
 
+/**
+ * True when a tally crosses the configured فتح threshold: the question's
+ * فتح count already reached the threshold and it now carries any further
+ * error (another فتح, or a تنبيه/تلعثم). `fathThreshold` null/undefined (or
+ * less than 1) disables the rule.
+ */
+export function isAutoCancelTriggered(
+  tally: QuestionTally,
+  fathThreshold: number | null | undefined,
+): boolean {
+  if (fathThreshold == null || fathThreshold < 1) return false;
+  if (tally.cancelled) return false;
+  if (tally.fath > fathThreshold) return true;
+  return tally.fath >= fathThreshold && (tally.tanbih > 0 || tally.talathum > 0);
+}
+
 export function computeHifz(input: HifzInput): HifzBreakdown {
-  const { baseScore, questionCount, weights, tallies } = input;
+  const { baseScore, questionCount, weights, tallies, autoCancelFathThreshold } = input;
 
   if (questionCount < 1) {
     throw new Error("questionCount must be at least 1");
@@ -87,8 +131,9 @@ export function computeHifz(input: HifzInput): HifzBreakdown {
 
   for (const tally of tallies) {
     // A cancelled question is written off whole; its stumbles are not also
-    // charged, otherwise the candidate would be penalised twice for it.
-    if (tally.cancelled) {
+    // charged, otherwise the candidate would be penalised twice for it. The
+    // فتح threshold rule auto-cancels the same way once it triggers.
+    if (tally.cancelled || isAutoCancelTriggered(tally, autoCancelFathThreshold)) {
       cancelledPenalty += pointsPerQuestion;
       continue;
     }

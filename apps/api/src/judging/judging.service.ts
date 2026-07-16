@@ -9,6 +9,7 @@ import {
   computeCompetitionScore,
   type DirectCriterionScore,
   emptyTally,
+  isAutoCancelTriggered,
   type QuestionTally,
   round2,
 } from "@tahkeem/shared";
@@ -201,15 +202,21 @@ export class JudgingService {
     }
 
     // Score from the merged view: this submit, else the stored row, else flawless.
+    // The فتح auto-cancel rule is applied here too, so a client that never sent
+    // `cancelled: true` still gets the question written off once it triggers.
     const tallies: QuestionTally[] = paper.map((question) => {
       const submitted = dto.questions.find((q) => q.questionId === question.id);
       if (submitted) {
-        return {
+        const tally: QuestionTally = {
           talathum: submitted.talathumCount,
           tanbih: submitted.tanbihCount,
           fath: submitted.fathCount,
           cancelled: submitted.cancelled,
         };
+        tally.cancelled =
+          tally.cancelled ||
+          isAutoCancelTriggered(tally, scoring.autoCancelFathThreshold);
+        return tally;
       }
       const row = storedById.get(question.id);
       return row
@@ -259,6 +266,7 @@ export class JudgingService {
           questionCount,
           weights: scoring.weights,
           tallies,
+          autoCancelFathThreshold: scoring.autoCancelFathThreshold,
         },
         directScores,
       });
@@ -275,6 +283,19 @@ export class JudgingService {
           : (q.confirmed ??
             storedById.get(q.questionId)?.confirmed ??
             false);
+        // Persist the auto-cancel rule's verdict, not just what the client sent,
+        // so a resumed session and the candidate report both read it back.
+        const cancelled =
+          q.cancelled ||
+          isAutoCancelTriggered(
+            {
+              talathum: q.talathumCount,
+              tanbih: q.tanbihCount,
+              fath: q.fathCount,
+              cancelled: q.cancelled,
+            },
+            scoring.autoCancelFathThreshold,
+          );
         await tx.questionResult.upsert({
           where: {
             judgingSessionId_questionId: {
@@ -286,7 +307,7 @@ export class JudgingService {
             talathumCount: q.talathumCount,
             tanbihCount: q.tanbihCount,
             fathCount: q.fathCount,
-            cancelled: q.cancelled,
+            cancelled,
             confirmed,
           },
           create: {
@@ -295,7 +316,7 @@ export class JudgingService {
             talathumCount: q.talathumCount,
             tanbihCount: q.tanbihCount,
             fathCount: q.fathCount,
-            cancelled: q.cancelled,
+            cancelled,
             confirmed,
           },
         });
@@ -347,6 +368,7 @@ export class JudgingService {
         baseScore: scoring.hifzBase,
         questionCount,
         weights: scoring.weights,
+        autoCancelFathThreshold: scoring.autoCancelFathThreshold,
         tallies: dto.questions.map((q) => ({
           talathum: q.talathumCount,
           tanbih: q.tanbihCount,
@@ -451,7 +473,19 @@ export class JudgingService {
             (r) => r.questionId === question.id,
           );
           if (!result) return null;
-          if (result.cancelled) return 0;
+          if (
+            result.cancelled ||
+            isAutoCancelTriggered(
+              {
+                talathum: result.talathumCount,
+                tanbih: result.tanbihCount,
+                fath: result.fathCount,
+                cancelled: result.cancelled,
+              },
+              scoring.autoCancelFathThreshold,
+            )
+          )
+            return 0;
           const deduction =
             result.fathCount * scoring.weights.fath +
             result.tanbihCount * scoring.weights.tanbih +

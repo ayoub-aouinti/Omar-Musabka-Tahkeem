@@ -105,6 +105,8 @@ export interface CompetitionDetail extends CompetitionSummary {
   criteria: Criterion[];
   penaltyRules: PenaltyRule[];
   categories: Category[];
+  /** فتح threshold for the auto-cancel rule; null when disabled. */
+  autoCancelFathThreshold: number | null;
 }
 
 export interface ScoringConfig {
@@ -114,6 +116,7 @@ export interface ScoringConfig {
     tanbih: number;
     fath: number;
   };
+  autoCancelFathThreshold: number | null;
   directCriteria: Array<{
     id: string;
     key: string;
@@ -156,6 +159,8 @@ export interface ScoringPenaltyInput {
 export interface ScoringUpdate {
   criteria: ScoringCriterionInput[];
   penaltyRules: ScoringPenaltyInput[];
+  /** فتح threshold for the auto-cancel rule; omit/null to disable it. */
+  autoCancelFathThreshold?: number | null;
 }
 
 export interface CategoryUpsert {

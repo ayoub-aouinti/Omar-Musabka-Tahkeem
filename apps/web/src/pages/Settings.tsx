@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  autoCancelMessage,
   DEFAULT_PENALTY_WEIGHTS,
   round2,
   toDisplayDigits,
@@ -78,6 +79,8 @@ export function SettingsPage() {
   const [total, setTotal] = useState(60);
   const [directs, setDirects] = useState<DirectDraft[]>([]);
   const [penalties, setPenalties] = useState<PenaltyDraft[]>([]);
+  const [autoCancelEnabled, setAutoCancelEnabled] = useState(false);
+  const [autoCancelThreshold, setAutoCancelThreshold] = useState(3);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
@@ -133,6 +136,8 @@ export function SettingsPage() {
         };
       }),
     );
+    setAutoCancelEnabled(data.autoCancelFathThreshold != null);
+    setAutoCancelThreshold(data.autoCancelFathThreshold ?? 3);
   }, [competition.data]);
 
   const directTotal = useMemo(
@@ -276,6 +281,9 @@ export function SettingsPage() {
         labelAr: p.labelAr,
         weight: Number(p.weight),
       })),
+      autoCancelFathThreshold: autoCancelEnabled
+        ? Number(autoCancelThreshold)
+        : null,
     };
 
     try {
@@ -416,6 +424,53 @@ export function SettingsPage() {
                 </div>
               ))}
             </div>
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="mb-1 font-headline-md text-lg text-on-surface">
+              إلغاء السؤال تلقائيًا
+            </h2>
+            <p className="mb-4 font-body-md text-sm text-on-surface-variant">
+              اختياري: إلغاء السؤال مباشرةً إذا سُجِّل أيّ خطأ (فتح، تنبيه، أو
+              تلعثم) بعد بلوغ عدد الفتحات الحدّ المحدَّد.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 font-body-md text-sm text-on-surface">
+                <input
+                  type="checkbox"
+                  disabled={locked}
+                  checked={autoCancelEnabled}
+                  onChange={(e) => setAutoCancelEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-outline-variant"
+                />
+                تفعيل الإلغاء التلقائي
+              </label>
+              {autoCancelEnabled ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-label-md text-sm text-on-surface-variant">
+                    بعد الفتح رقم
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    step="1"
+                    disabled={locked}
+                    value={autoCancelThreshold}
+                    onChange={(e) =>
+                      setAutoCancelThreshold(
+                        Math.max(1, Number(e.target.value)),
+                      )
+                    }
+                    className="w-20"
+                  />
+                </div>
+              ) : null}
+            </div>
+            {autoCancelEnabled ? (
+              <p className="mt-3 rounded-lg bg-surface-container-low p-3 font-arabic-body text-sm text-on-surface-variant">
+                {autoCancelMessage(autoCancelThreshold)}
+              </p>
+            ) : null}
           </Card>
 
           <Card className="p-6">

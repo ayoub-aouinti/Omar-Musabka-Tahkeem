@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -66,6 +66,13 @@ function JudgeSession({
   const [action, setAction] = useState<
     "confirm" | "draft" | "finalDraft" | "finalize" | null
   >(null);
+
+  useEffect(() => {
+    if (!scoring.autoCancelAlert) return;
+    Alert.alert("السؤال ألغي تلقائيًا", scoring.autoCancelAlert, [
+      { text: "حسنًا", onPress: scoring.dismissAutoCancelAlert },
+    ]);
+  }, [scoring.autoCancelAlert, scoring.dismissAutoCancelAlert]);
 
   const readOnly = data.session.status === "SUBMITTED";
   const questions = data.questions;

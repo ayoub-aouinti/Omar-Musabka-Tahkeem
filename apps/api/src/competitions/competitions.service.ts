@@ -205,6 +205,11 @@ export class CompetitionsService {
         data: dto.penaltyRules.map((r) => ({ ...r, competitionId: id })),
       });
 
+      await tx.competition.update({
+        where: { id },
+        data: { autoCancelFathThreshold: dto.autoCancelFathThreshold ?? null },
+      });
+
       return tx.competition.findUnique({
         where: { id },
         include: {
@@ -235,6 +240,7 @@ export class CompetitionsService {
   ): Promise<{
     hifzBase: number;
     weights: PenaltyWeights;
+    autoCancelFathThreshold: number | null;
     directCriteria: Array<{
       id: string;
       key: string;
@@ -276,6 +282,7 @@ export class CompetitionsService {
         tanbih: weightOf("TANBIH", DEFAULT_PENALTY_WEIGHTS.tanbih),
         fath: weightOf("FATH", DEFAULT_PENALTY_WEIGHTS.fath),
       },
+      autoCancelFathThreshold: competition.autoCancelFathThreshold,
       directCriteria: competition.criteria
         .filter((c) => c.kind === CriterionKind.DIRECT)
         .map((criterion) => {

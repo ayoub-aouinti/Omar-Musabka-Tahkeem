@@ -91,6 +91,15 @@ export class UpdateScoringDto {
   @ValidateNested({ each: true })
   @Type(() => PenaltyRuleDto)
   penaltyRules!: PenaltyRuleDto[];
+
+  /**
+   * فتح threshold for the auto-cancel rule (see PenaltyRuleDto's kinds for
+   * what counts as an error). Null/omitted disables the rule.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  autoCancelFathThreshold?: number | null;
 }
 
 export class UpsertCategoryDto {

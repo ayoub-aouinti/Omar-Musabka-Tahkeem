@@ -166,6 +166,8 @@ export interface DirectCriterion {
 export interface ScoringConfig {
   hifzBase: number;
   weights: PenaltyWeights;
+  /** فتح threshold for the auto-cancel rule; null when the rule is disabled. */
+  autoCancelFathThreshold: number | null;
   directCriteria: DirectCriterion[];
   questionCount: number;
   pointsPerQuestion: number;
