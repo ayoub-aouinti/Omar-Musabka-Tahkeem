@@ -97,10 +97,14 @@ export function emptyTally(): QuestionTally {
 }
 
 /**
- * True when a tally crosses the configured فتح threshold: the question's
- * فتح count already reached the threshold and it now carries any further
- * error (another فتح, or a تنبيه/تلعثم). `fathThreshold` null/undefined (or
- * less than 1) disables the rule.
+ * True when a tally's فتح count alone proves the rule was crossed: a count
+ * past the threshold means at least one فتح necessarily happened after the
+ * count had already reached it, no matter what order the taps came in. This
+ * is the only case decidable from final counts alone — a تنبيه/تلعثم next to
+ * a threshold-reaching فتح count could have happened before *or* after it,
+ * so it is deliberately NOT flagged here (see `isAutoCancelTriggeredByTap`
+ * for the order-aware version used while live-tallying). `fathThreshold`
+ * null/undefined (or less than 1) disables the rule.
  */
 export function isAutoCancelTriggered(
   tally: QuestionTally,
@@ -108,8 +112,26 @@ export function isAutoCancelTriggered(
 ): boolean {
   if (fathThreshold == null || fathThreshold < 1) return false;
   if (tally.cancelled) return false;
-  if (tally.fath > fathThreshold) return true;
-  return tally.fath >= fathThreshold && (tally.tanbih > 0 || tally.talathum > 0);
+  return tally.fath > fathThreshold;
+}
+
+/**
+ * The order-aware auto-cancel check for live tallying: judges tap one
+ * counter at a time (±1), so `prevTally` — the tally right BEFORE this tap —
+ * tells us whether فتح had already reached the threshold before the error
+ * that produced `nextValue`. An error recorded before the threshold was
+ * reached must not retroactively cancel the question once فتح catches up.
+ */
+export function isAutoCancelTriggeredByTap(
+  prevTally: QuestionTally,
+  key: keyof PenaltyWeights,
+  nextValue: number,
+  fathThreshold: number | null | undefined,
+): boolean {
+  if (fathThreshold == null || fathThreshold < 1) return false;
+  if (prevTally.cancelled) return false;
+  if (nextValue <= prevTally[key]) return false; // a decrement never triggers it
+  return prevTally.fath >= fathThreshold;
 }
 
 export function computeHifz(input: HifzInput): HifzBreakdown {

@@ -7,6 +7,7 @@ import {
   DEFAULT_PENALTY_WEIGHTS,
   emptyTally,
   isAutoCancelTriggered,
+  isAutoCancelTriggeredByTap,
   type QuestionTally,
 } from "../scoring";
 
@@ -89,35 +90,33 @@ describe("computeHifz — the المعايير workbook formula", () => {
   });
 });
 
-describe("isAutoCancelTriggered — the فتح threshold rule", () => {
+describe("isAutoCancelTriggered — order-independent, from final counts only", () => {
   it("is disabled when no threshold is configured", () => {
-    expect(isAutoCancelTriggered(tally({ fath: 3, tanbih: 5 }), null)).toBe(false);
-    expect(isAutoCancelTriggered(tally({ fath: 3, tanbih: 5 }), undefined)).toBe(
-      false,
-    );
+    expect(isAutoCancelTriggered(tally({ fath: 4 }), null)).toBe(false);
+    expect(isAutoCancelTriggered(tally({ fath: 4 }), undefined)).toBe(false);
   });
 
-  it("does not trigger below the threshold", () => {
-    expect(isAutoCancelTriggered(tally({ fath: 2, tanbih: 4 }), 3)).toBe(false);
-  });
-
-  it("does not trigger on the threshold فتح alone", () => {
+  it("does not trigger below or at the threshold", () => {
+    expect(isAutoCancelTriggered(tally({ fath: 2 }), 3)).toBe(false);
     expect(isAutoCancelTriggered(tally({ fath: 3 }), 3)).toBe(false);
   });
 
-  it("triggers on a further فتح past the threshold", () => {
+  it("triggers on a فتح count past the threshold — unambiguous regardless of order", () => {
     expect(isAutoCancelTriggered(tally({ fath: 4 }), 3)).toBe(true);
   });
 
-  it("triggers on a تنبيه or تلعثم once the threshold فتح is reached", () => {
-    expect(isAutoCancelTriggered(tally({ fath: 3, tanbih: 1 }), 3)).toBe(true);
-    expect(isAutoCancelTriggered(tally({ fath: 3, talathum: 1 }), 3)).toBe(true);
+  it("does NOT trigger on a تنبيه/تلعثم next to a threshold فتح count — order is unknown", () => {
+    // Could have been recorded before فتح ever reached the threshold; see the
+    // isAutoCancelTriggeredByTap suite for the order-aware version that
+    // judges the live sequence of taps correctly.
+    expect(isAutoCancelTriggered(tally({ fath: 3, tanbih: 1 }), 3)).toBe(false);
+    expect(isAutoCancelTriggered(tally({ fath: 3, talathum: 1 }), 3)).toBe(false);
   });
 
   it("does not re-trigger on an already cancelled question", () => {
-    expect(
-      isAutoCancelTriggered(tally({ cancelled: true, fath: 5, tanbih: 5 }), 3),
-    ).toBe(false);
+    expect(isAutoCancelTriggered(tally({ cancelled: true, fath: 5 }), 3)).toBe(
+      false,
+    );
   });
 
   it("builds the judge-facing message with the Arabic ordinal", () => {
@@ -135,6 +134,60 @@ describe("isAutoCancelTriggered — the فتح threshold rule", () => {
     expect(result.cancelledPenalty).toBe(30);
     expect(result.fathPenalty).toBe(0);
     expect(result.score).toBe(30);
+  });
+});
+
+describe("isAutoCancelTriggeredByTap — order-aware, for live tallying", () => {
+  it("is disabled when no threshold is configured", () => {
+    expect(isAutoCancelTriggeredByTap(tally({ fath: 3 }), "tanbih", 1, null)).toBe(
+      false,
+    );
+  });
+
+  it("does not trigger a تنبيه tapped before فتح reaches the threshold", () => {
+    // The exact bug this guards against: تنبيه tapped at fath=1, then فتح
+    // catches up to 3 later — the earlier تنبيه must not retroactively cancel.
+    expect(isAutoCancelTriggeredByTap(tally({ fath: 1 }), "tanbih", 1, 3)).toBe(
+      false,
+    );
+  });
+
+  it("does not trigger the فتح tap that only just reaches the threshold", () => {
+    expect(isAutoCancelTriggeredByTap(tally({ fath: 2 }), "fath", 3, 3)).toBe(
+      false,
+    );
+  });
+
+  it("triggers a further فتح tap once فتح is already at the threshold", () => {
+    expect(isAutoCancelTriggeredByTap(tally({ fath: 3 }), "fath", 4, 3)).toBe(
+      true,
+    );
+  });
+
+  it("triggers a تنبيه/تلعثم tap once فتح is already at the threshold", () => {
+    expect(isAutoCancelTriggeredByTap(tally({ fath: 3 }), "tanbih", 1, 3)).toBe(
+      true,
+    );
+    expect(
+      isAutoCancelTriggeredByTap(tally({ fath: 3 }), "talathum", 1, 3),
+    ).toBe(true);
+  });
+
+  it("ignores a decrement", () => {
+    expect(
+      isAutoCancelTriggeredByTap(tally({ fath: 3, tanbih: 2 }), "tanbih", 1, 3),
+    ).toBe(false);
+  });
+
+  it("does not re-trigger on an already cancelled question", () => {
+    expect(
+      isAutoCancelTriggeredByTap(
+        tally({ cancelled: true, fath: 3 }),
+        "tanbih",
+        1,
+        3,
+      ),
+    ).toBe(false);
   });
 });
 

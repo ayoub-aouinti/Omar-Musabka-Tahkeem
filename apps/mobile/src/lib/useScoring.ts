@@ -3,7 +3,7 @@ import {
   autoCancelMessage,
   computeCompetitionScore,
   emptyTally,
-  isAutoCancelTriggered,
+  isAutoCancelTriggeredByTap,
   type CompetitionScore,
   type QuestionTally,
 } from "@tahkeem/shared";
@@ -104,9 +104,14 @@ export function useScoring(data: OpenSessionResponse): ScoringState {
     (questionId: string, key: TallyKey, value: number) => {
       setTallies((prev) => {
         const current = prev[questionId] ?? emptyTally();
-        const next: QuestionTally = { ...current, [key]: Math.max(0, value) };
+        const nextValue = Math.max(0, value);
+        const next: QuestionTally = { ...current, [key]: nextValue };
         const threshold = data.scoring.autoCancelFathThreshold;
-        if (isAutoCancelTriggered(next, threshold)) {
+        // Order-aware: judges tap one counter at a time, so `current` (the
+        // tally right before this tap) tells us whether فتح had already
+        // reached the threshold — an error recorded before that must not
+        // retroactively cancel the question.
+        if (isAutoCancelTriggeredByTap(current, key, nextValue, threshold)) {
           next.cancelled = true;
           if (threshold != null) setAutoCancelAlert(autoCancelMessage(threshold));
         }
