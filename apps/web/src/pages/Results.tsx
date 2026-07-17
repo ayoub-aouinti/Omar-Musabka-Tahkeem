@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import * as XLSX from "xlsx";
 import { toDisplayDigits } from "@tahkeem/shared";
 import { useCandidateReport, useCompetition, useResults } from "../hooks";
 import { useSelectedCompetition } from "../lib/competitionContext";
@@ -15,9 +16,46 @@ import {
   Select,
   Skeleton,
 } from "../components/ui";
-import type { CandidateReport } from "../types";
+import type { CandidateReport, ResultRow } from "../types";
 
 const MEDALS = ["#f6c945", "#c4c7c3", "#cd8a4b"];
+
+type SortKey = "score" | "name" | "category" | "judgeCount";
+type SortDir = "asc" | "desc";
+
+/** Clickable column header with an ascending/descending indicator. */
+function SortableTh({
+  label,
+  active,
+  dir,
+  align = "start",
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  align?: "start" | "end";
+  onClick: () => void;
+}) {
+  return (
+    <th className={`px-4 py-3 text-${align} font-medium`}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={[
+          "inline-flex items-center gap-1 font-label-md text-xs font-medium",
+          active ? "text-on-surface" : "text-on-surface-variant",
+        ].join(" ")}
+      >
+        {label}
+        <Icon
+          name={active ? (dir === "asc" ? "arrow_upward" : "arrow_downward") : "unfold_more"}
+          className="text-[16px]"
+        />
+      </button>
+    </th>
+  );
+}
 
 function formatDuration(minutes: number | null): string {
   if (minutes === null) return "—";
@@ -230,6 +268,8 @@ export function ResultsPage() {
   const results = useResults(selectedId ?? undefined, categoryId);
   const [viewId, setViewId] = useState<string | null>(null);
   const [printId, setPrintId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("score");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>();
@@ -237,13 +277,57 @@ export function ResultsPage() {
     return map;
   }, [competition.data]);
 
-  const ranked = useMemo(
-    () =>
-      [...(results.data ?? [])].sort(
-        (a, b) => b.averageScore - a.averageScore,
-      ),
-    [results.data],
-  );
+  /** Overall competition rank, always by score descending, independent of the visible sort. */
+  const rankByCandidateId = useMemo(() => {
+    const byScore = [...(results.data ?? [])].sort(
+      (a, b) => b.averageScore - a.averageScore,
+    );
+    const map = new Map<string, number>();
+    byScore.forEach((row, index) => map.set(row.candidate.id, index + 1));
+    return map;
+  }, [results.data]);
+
+  const ranked = useMemo(() => {
+    const rows = [...(results.data ?? [])];
+    const dir = sortDir === "asc" ? 1 : -1;
+    const compare: Record<SortKey, (a: ResultRow, b: ResultRow) => number> = {
+      score: (a, b) => (a.averageScore - b.averageScore) * dir,
+      judgeCount: (a, b) => (a.judgeCount - b.judgeCount) * dir,
+      name: (a, b) =>
+        a.candidate.fullName.localeCompare(b.candidate.fullName, "ar") * dir,
+      category: (a, b) =>
+        (categoryLabel.get(a.candidate.categoryId) ?? "").localeCompare(
+          categoryLabel.get(b.candidate.categoryId) ?? "",
+          "ar",
+        ) * dir,
+    };
+    rows.sort(compare[sortKey]);
+    return rows;
+  }, [results.data, sortKey, sortDir, categoryLabel]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "score" ? "desc" : "asc");
+    }
+  }
+
+  function exportToExcel() {
+    const data = ranked.map((row) => ({
+      الترتيب: rankByCandidateId.get(row.candidate.id) ?? "",
+      المشارك: row.candidate.fullName,
+      الصنف: categoryLabel.get(row.candidate.categoryId) ?? "—",
+      "عدد المحكّمين": row.judgeCount,
+      "متوسّط الدرجة": Number(row.averageScore.toFixed(2)),
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "النتائج");
+    const competitionName = competition.data?.name ?? "المسابقة";
+    XLSX.writeFile(workbook, `نتائج-${competitionName}.xlsx`);
+  }
 
   if (!selectedId) {
     return (
@@ -264,18 +348,34 @@ export function ResultsPage() {
             ترتيب المشاركين حسب متوسّط درجات المحكّمين — {competition.data?.name}
           </p>
         </div>
-        <Select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-        >
-          <option value="">كل الأصناف</option>
-          {competition.data?.categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.labelAr}
-            </option>
-          ))}
-        </Select>
+        <div className="flex flex-wrap items-center gap-3">
+          <Select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+          >
+            <option value="">كل الأصناف</option>
+            {competition.data?.categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.labelAr}
+              </option>
+            ))}
+          </Select>
+          <Button
+            variant="outline"
+            icon="download"
+            disabled={ranked.length === 0}
+            onClick={exportToExcel}
+          >
+            تصدير Excel
+          </Button>
+        </div>
       </header>
+
+      {ranked.length > 0 ? (
+        <p className="-mt-2 font-body-md text-sm text-on-surface-variant">
+          الإجمالي: {toDisplayDigits(ranked.length)} مشارك
+        </p>
+      ) : null}
 
       <Card className="overflow-hidden">
         {results.isLoading ? (
@@ -301,37 +401,56 @@ export function ResultsPage() {
               <thead>
                 <tr className="border-b border-outline-variant text-start font-label-md text-xs text-on-surface-variant">
                   <th className="px-4 py-3 text-start font-medium">الترتيب</th>
-                  <th className="px-4 py-3 text-start font-medium">المشارك</th>
-                  <th className="px-4 py-3 text-start font-medium">الصنف</th>
-                  <th className="px-4 py-3 text-start font-medium">
-                    عدد المحكّمين
-                  </th>
-                  <th className="px-4 py-3 text-start font-medium">
-                    متوسّط الدرجة
-                  </th>
+                  <SortableTh
+                    label="المشارك"
+                    active={sortKey === "name"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("name")}
+                  />
+                  <SortableTh
+                    label="الصنف"
+                    active={sortKey === "category"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("category")}
+                  />
+                  <SortableTh
+                    label="عدد المحكّمين"
+                    active={sortKey === "judgeCount"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("judgeCount")}
+                  />
+                  <SortableTh
+                    label="متوسّط الدرجة"
+                    active={sortKey === "score"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("score")}
+                  />
                   <th className="px-4 py-3 text-end font-medium">إجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                {ranked.map((row, index) => (
+                {ranked.map((row) => {
+                  const rank = rankByCandidateId.get(row.candidate.id) ?? 0;
+                  const isMedal = rank >= 1 && rank <= 3;
+                  return (
                   <tr
                     key={row.candidate.id}
                     className={[
                       "border-b border-outline-variant/60",
-                      index < 3 ? "row-active" : "",
+                      isMedal ? "row-active" : "",
                     ].join(" ")}
                   >
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 font-headline-md text-lg text-on-surface">
-                        {index < 3 ? (
+                        {isMedal ? (
                           <Icon
                             name="workspace_premium"
                             className="text-[22px]"
                             // medal tint
                           />
                         ) : null}
-                        <span style={index < 3 ? { color: MEDALS[index] } : undefined}>
-                          {toDisplayDigits(index + 1)}
+                        <span style={isMedal ? { color: MEDALS[rank - 1] } : undefined}>
+                          {toDisplayDigits(rank)}
                         </span>
                       </span>
                     </td>
@@ -372,7 +491,8 @@ export function ResultsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
