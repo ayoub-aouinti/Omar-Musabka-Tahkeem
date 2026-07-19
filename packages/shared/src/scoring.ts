@@ -225,3 +225,76 @@ export function computeCompetitionScore(
     maxTotal: round2(input.hifz.baseScore + maxDirect),
   };
 }
+
+// ─────────────────────── category-scoped criteria ───────────────────────
+
+export interface CriterionScaleInput {
+  labelAr: string;
+  minHizb: number;
+  maxHizb: number;
+  maxPoints: number;
+  bands: Array<{ minPoints: number; maxPoints: number; descriptionAr: string }>;
+}
+
+export interface DirectCriterionInput {
+  id: string;
+  key: string;
+  labelAr: string;
+  maxPoints: number;
+  scales: CriterionScaleInput[];
+}
+
+export interface ResolvedDirectCriterion {
+  id: string;
+  key: string;
+  labelAr: string;
+  maxPoints: number;
+  scaleLabelAr: string | null;
+  bands: Array<{ minPoints: number; maxPoints: number; descriptionAr: string }>;
+}
+
+/**
+ * Picks which DIRECT criteria apply to a candidate's category and at what
+ * ceiling. A criterion with no scales applies to every category at its own
+ * maxPoints (the historical "flat" behavior). A criterion WITH scales only
+ * applies within its scales' hizb coverage — outside that, it is omitted
+ * entirely, which is what lets one competition mix rubrics per category
+ * group (e.g. a young-category-only criterion never shown to older
+ * candidates). When `hizbCount` is unknown (e.g. a category-agnostic
+ * preview), every criterion is shown at its own maxPoints.
+ */
+export function resolveDirectCriteria(
+  criteria: DirectCriterionInput[],
+  hizbCount: number | null | undefined,
+): ResolvedDirectCriterion[] {
+  return criteria.flatMap((criterion): ResolvedDirectCriterion[] => {
+    if (hizbCount == null || criterion.scales.length === 0) {
+      return [
+        {
+          id: criterion.id,
+          key: criterion.key,
+          labelAr: criterion.labelAr,
+          maxPoints: criterion.maxPoints,
+          scaleLabelAr: null,
+          bands: [],
+        },
+      ];
+    }
+
+    const scale = criterion.scales.find(
+      (s) => hizbCount >= s.minHizb && hizbCount <= s.maxHizb,
+    );
+    if (!scale) return [];
+
+    return [
+      {
+        id: criterion.id,
+        key: criterion.key,
+        labelAr: criterion.labelAr,
+        maxPoints: scale.maxPoints,
+        scaleLabelAr: scale.labelAr,
+        bands: scale.bands,
+      },
+    ];
+  });
+}

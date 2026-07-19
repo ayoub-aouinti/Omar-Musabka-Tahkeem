@@ -5,10 +5,12 @@ import {
   computeHifz,
   DEFAULT_HIFZ_BASE,
   DEFAULT_PENALTY_WEIGHTS,
+  type DirectCriterionInput,
   emptyTally,
   isAutoCancelTriggered,
   isAutoCancelTriggeredByTap,
   type QuestionTally,
+  resolveDirectCriteria,
 } from "../scoring";
 
 const tally = (partial: Partial<QuestionTally>): QuestionTally => ({
@@ -215,5 +217,86 @@ describe("computeCompetitionScore", () => {
         ],
       }),
     ).toThrow(/outside 0\.\.30/);
+  });
+});
+
+describe("resolveDirectCriteria — category-scoped criteria", () => {
+  const young: DirectCriterionInput = {
+    id: "fann",
+    key: "fann",
+    labelAr: "الفن",
+    maxPoints: 10,
+    scales: [
+      { labelAr: "2-4", minHizb: 2, maxHizb: 4, maxPoints: 10, bands: [] },
+    ],
+  };
+  const ghunna: DirectCriterionInput = {
+    id: "ghunna",
+    key: "ghunna",
+    labelAr: "غنن",
+    maxPoints: 10,
+    scales: [
+      { labelAr: "5-25", minHizb: 5, maxHizb: 25, maxPoints: 10, bands: [] },
+      { labelAr: "30-60", minHizb: 30, maxHizb: 60, maxPoints: 8, bands: [] },
+    ],
+  };
+  const husnAdaa: DirectCriterionInput = {
+    id: "husn_adaa",
+    key: "husn_adaa",
+    labelAr: "حسن الأداء",
+    maxPoints: 5,
+    scales: [
+      { labelAr: "جميع الأصناف", minHizb: 2, maxHizb: 60, maxPoints: 5, bands: [] },
+    ],
+  };
+  const unscaled: DirectCriterionInput = {
+    id: "flat",
+    key: "flat",
+    labelAr: "معيار عام",
+    maxPoints: 7,
+    scales: [],
+  };
+
+  it("omits a scaled criterion for a hizbCount outside every scale", () => {
+    const result = resolveDirectCriteria([young, ghunna], 10);
+    expect(result.map((c) => c.key)).toEqual(["ghunna"]);
+  });
+
+  it("includes a scaled criterion with the matching scale's maxPoints/label", () => {
+    const result = resolveDirectCriteria([ghunna], 45);
+    expect(result).toEqual([
+      {
+        id: "ghunna",
+        key: "ghunna",
+        labelAr: "غنن",
+        maxPoints: 8,
+        scaleLabelAr: "30-60",
+        bands: [],
+      },
+    ]);
+  });
+
+  it("applies an unscaled criterion uniformly regardless of hizbCount", () => {
+    expect(resolveDirectCriteria([unscaled], 3).map((c) => c.maxPoints)).toEqual([7]);
+    expect(resolveDirectCriteria([unscaled], 45).map((c) => c.maxPoints)).toEqual([7]);
+  });
+
+  it("shows every criterion at its base maxPoints when hizbCount is unknown", () => {
+    const result = resolveDirectCriteria([young, ghunna, husnAdaa], null);
+    expect(result.map((c) => c.key)).toEqual(["fann", "ghunna", "husn_adaa"]);
+    expect(result.map((c) => c.maxPoints)).toEqual([10, 10, 5]);
+    expect(result.every((c) => c.scaleLabelAr === null)).toBe(true);
+  });
+
+  it("mixes rubrics correctly across the young and standard category groups", () => {
+    const criteria = [young, ghunna, husnAdaa];
+    expect(resolveDirectCriteria(criteria, 3).map((c) => c.key)).toEqual([
+      "fann",
+      "husn_adaa",
+    ]);
+    expect(resolveDirectCriteria(criteria, 15).map((c) => c.key)).toEqual([
+      "ghunna",
+      "husn_adaa",
+    ]);
   });
 });

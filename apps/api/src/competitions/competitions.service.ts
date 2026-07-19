@@ -4,6 +4,7 @@ import {
   DEFAULT_HIFZ_BASE,
   DEFAULT_PENALTY_WEIGHTS,
   type PenaltyWeights,
+  resolveDirectCriteria,
 } from "@tahkeem/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { TAJWEED_CRITERIA } from "./tajweed-criteria";
@@ -243,7 +244,10 @@ export class CompetitionsService {
    * The hifz base, penalty weights and general criteria, ready for the scoring
    * engine. When `hizbCount` is given, each general criterion's ceiling and
    * guidance bands are resolved to the scale matching that category — the 2025
-   * rubric scores التجويد differently for «دون 30 حزبًا» and «30 فما فوق».
+   * rubric scores التجويد differently for «دون 30 حزبًا» and «30 فما فوق». A
+   * criterion whose scales don't cover `hizbCount` at all is omitted entirely
+   * (see `resolveDirectCriteria`), which lets a competition mix genuinely
+   * different criteria per category group, not just different ceilings.
    */
   async getScoringConfig(
     competitionId: string,
@@ -294,28 +298,28 @@ export class CompetitionsService {
         fath: weightOf("FATH", DEFAULT_PENALTY_WEIGHTS.fath),
       },
       autoCancelFathThreshold: competition.autoCancelFathThreshold,
-      directCriteria: competition.criteria
-        .filter((c) => c.kind === CriterionKind.DIRECT)
-        .map((criterion) => {
-          const scale =
-            hizbCount == null
-              ? null
-              : (criterion.scales.find(
-                  (s) => hizbCount >= s.minHizb && hizbCount <= s.maxHizb,
-                ) ?? null);
-          return {
+      directCriteria: resolveDirectCriteria(
+        competition.criteria
+          .filter((c) => c.kind === CriterionKind.DIRECT)
+          .map((criterion) => ({
             id: criterion.id,
             key: criterion.key,
             labelAr: criterion.labelAr,
-            maxPoints: scale?.maxPoints ?? criterion.maxPoints,
-            scaleLabelAr: scale?.labelAr ?? null,
-            bands: (scale?.bands ?? []).map((b) => ({
-              minPoints: b.minPoints,
-              maxPoints: b.maxPoints,
-              descriptionAr: b.descriptionAr,
+            maxPoints: criterion.maxPoints,
+            scales: criterion.scales.map((s) => ({
+              labelAr: s.labelAr,
+              minHizb: s.minHizb,
+              maxHizb: s.maxHizb,
+              maxPoints: s.maxPoints,
+              bands: s.bands.map((b) => ({
+                minPoints: b.minPoints,
+                maxPoints: b.maxPoints,
+                descriptionAr: b.descriptionAr,
+              })),
             })),
-          };
-        }),
+          })),
+        hizbCount ?? null,
+      ),
     };
   }
 

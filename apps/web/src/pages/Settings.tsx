@@ -535,7 +535,10 @@ export function SettingsPage() {
                 <p className="rounded-lg bg-surface-container-low p-3 font-body-md text-xs text-on-surface-variant">
                   لكلّ معيار تجويد سلالم مرتبطة بعدد أحزاب المشارك؛ يُختار السلّم
                   الذي يقع فيه عدد أحزابه، وتحدّد نطاقاته (الشرائح) الوصفية سقف
-                  الدرجة.
+                  الدرجة. معيار له سلالم لا يظهر للمحكّم إلا للأصناف الواقعة ضمن
+                  نطاق أحد سلالمه — الأصناف الأخرى لا تُقيَّم بهذا المعيار
+                  إطلاقًا، ما يتيح استعمال معايير مختلفة كليًّا لفئات مختلفة من
+                  الأصناف داخل المسابقة نفسها.
                 </p>
                 {directs.map((direct, index) => (
                   <div
@@ -591,7 +594,8 @@ export function SettingsPage() {
 
                       {direct.scales.length === 0 ? (
                         <p className="font-body-md text-xs text-on-surface-variant">
-                          لا توجد سلالم — تُطبَّق القيمة القصوى مباشرة.
+                          لا توجد سلالم — تُطبَّق القيمة القصوى مباشرة على جميع
+                          الأصناف.
                         </p>
                       ) : (
                         direct.scales.map((scale, sIndex) => (

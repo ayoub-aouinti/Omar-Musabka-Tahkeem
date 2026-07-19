@@ -12,7 +12,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:reset": "prisma migrate reset --force",
     "prisma:seed": "ts-node -P tsconfig.seed.json prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "seed:omar-2026-round2": "ts-node -P tsconfig.seed.json prisma/seed-omar-2026-round2.ts"
   },
   "prisma": {
     "seed": "ts-node -P tsconfig.seed.json prisma/seed.ts"
