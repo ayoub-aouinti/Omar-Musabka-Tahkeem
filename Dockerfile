@@ -52,6 +52,10 @@ COPY --from=builder /app/apps/api/dist ./apps/api/dist
 # scripts read). tsconfig.seed.json is needed by the ts-node seed command.
 COPY apps/api/prisma ./apps/api/prisma
 COPY apps/api/tsconfig.json apps/api/tsconfig.seed.json ./apps/api/
+# The app runs from dist/, but the ts-node seed scripts import a few source
+# files (e.g. seed.ts → ../src/competitions/tajweed-criteria), so src/ must be
+# present for `pnpm prisma:seed` to run in the container. It's small TS source.
+COPY apps/api/src ./apps/api/src
 
 # Regenerate the Prisma client into this stage's node_modules.
 RUN pnpm --filter @tahkeem/api exec prisma generate
