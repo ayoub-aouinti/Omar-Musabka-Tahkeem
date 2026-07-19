@@ -9,7 +9,7 @@ import {
 import { toDisplayDigits, type CompetitionScore } from "@tahkeem/shared";
 import { colors, MIN_TOUCH, radius, spacing } from "../theme";
 import { formatScore } from "../lib/format";
-import { Stepper } from "./Stepper";
+import { ScoreSlider } from "./ScoreSlider";
 import type { DirectCriterion, ScoringConfig } from "../types";
 
 /**
@@ -92,25 +92,22 @@ export const FinalSheet = forwardRef<BottomSheetModal, FinalSheetProps>(
               );
               return (
                 <View key={criterion.id} style={styles.criterion}>
-                  <View style={styles.row}>
-                    <View style={styles.labelCol}>
-                      <Text style={styles.label}>{criterion.labelAr}</Text>
-                      <Text style={styles.sub}>
-                        {unset ? "لم تُقيَّم بعد" : formatScore(value)} /{" "}
-                        {toDisplayDigits(criterion.maxPoints)}
-                        {criterion.scaleLabelAr
-                          ? `  ·  ${criterion.scaleLabelAr}`
-                          : ""}
-                      </Text>
-                    </View>
-                    <Stepper
-                      value={value}
-                      onChange={(v) => onCriterion(criterion.id, v)}
-                      min={0}
-                      max={criterion.maxPoints}
-                      disabled={readOnly}
-                    />
+                  <View style={styles.labelCol}>
+                    <Text style={styles.label}>{criterion.labelAr}</Text>
+                    <Text style={styles.sub}>
+                      {unset ? "لم تُقيَّم بعد" : formatScore(value)} /{" "}
+                      {toDisplayDigits(criterion.maxPoints)}
+                      {criterion.scaleLabelAr
+                        ? `  ·  ${criterion.scaleLabelAr}`
+                        : ""}
+                    </Text>
                   </View>
+                  <ScoreSlider
+                    value={value}
+                    onChange={(v) => onCriterion(criterion.id, v)}
+                    max={criterion.maxPoints}
+                    disabled={readOnly}
+                  />
                   {activeBand ? (
                     <Text style={styles.bandText}>{activeBand.descriptionAr}</Text>
                   ) : null}
@@ -197,13 +194,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   criterion: { gap: spacing.xs },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: MIN_TOUCH,
-    gap: spacing.md,
-  },
   bandText: {
     fontSize: 12,
     color: colors.onSurfaceVariant,

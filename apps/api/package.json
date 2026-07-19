@@ -13,7 +13,8 @@
     "prisma:reset": "prisma migrate reset --force",
     "prisma:seed": "ts-node -P tsconfig.seed.json prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "seed:omar-2026-round2": "ts-node -P tsconfig.seed.json prisma/seed-omar-2026-round2.ts"
+    "seed:omar-2026-round2": "ts-node -P tsconfig.seed.json prisma/seed-omar-2026-round2.ts",
+    "rename:talaqa-qalqala": "ts-node -P tsconfig.seed.json prisma/rename-talaqa-qalqala.ts"
   },
   "prisma": {
     "seed": "ts-node -P tsconfig.seed.json prisma/seed.ts"

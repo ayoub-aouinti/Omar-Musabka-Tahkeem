@@ -333,7 +333,7 @@ const DIRECT_CRITERIA: CriterionSeed[] = [
   { key: "fann", labelAr: "الفن", maxPoints: 10, scales: [{ ...YOUNG, maxPoints: 10 }] },
   { key: "mad_tabiie", labelAr: "المد الطبيعي", maxPoints: 5, scales: [{ ...YOUNG, maxPoints: 5 }] },
   { key: "mudood_ukhra", labelAr: "المدود الأخرى", maxPoints: 8, scales: [{ ...YOUNG, maxPoints: 8 }] },
-  { key: "talaqa", labelAr: "الطلاقة", maxPoints: 8, scales: [{ ...YOUNG, maxPoints: 8 }] },
+  { key: "qalqala", labelAr: "القلقلة", maxPoints: 8, scales: [{ ...YOUNG, maxPoints: 8 }] },
   { key: "tahakkum_tanaffus", labelAr: "التحكم في التنفس", maxPoints: 4, scales: [{ ...YOUNG, maxPoints: 4 }] },
   // صنف 5..60 — shared rubric, ceiling drops for 30 فما فوق.
   { key: "ghunna", labelAr: "غنن", maxPoints: 10, scales: [{ ...MID, maxPoints: 10 }, { ...SENIOR, maxPoints: 8 }] },

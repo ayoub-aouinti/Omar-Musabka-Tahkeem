@@ -6,6 +6,9 @@
     "preview": {
       "distribution": "internal",
       "channel": "demo",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://tahkeem-api.barakode.org/api"
       }
