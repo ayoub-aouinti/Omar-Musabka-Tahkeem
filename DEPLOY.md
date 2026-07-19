@@ -28,6 +28,7 @@ All three read config from environment variables already, so no code changes are
    - This talks to the same Postgres your Render API uses, it just runs the script locally. The seed script is re-runnable if you need to redo it later — just don't put it in the API's start command, since that would rerun it on every restart/wake.
 5. Note the service URL Render gives you, e.g. `https://tahkeem-api.onrender.com`. The API lives at `https://tahkeem-api.onrender.com/api`, docs at `/api/docs`.
 6. Grab the generated `SEED_ADMIN_PASSWORD` from the service's **Environment** tab — that's the demo admin login (email `admin@omar-quran.tn`).
+7. https://tahkeem-api.barakode.org new domaine
 
 **Free-tier caveats to set expectations with your client:**
 - The web service spins down after 15 minutes idle; the first request after that takes ~30–60s to wake up. Warn the client, or open the dashboard yourself a minute before the call.
