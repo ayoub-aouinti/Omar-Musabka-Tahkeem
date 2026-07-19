@@ -67,6 +67,24 @@ const PENALTY_DEFAULT_WEIGHT: Record<PenaltyDraft["kind"], number> = {
   TALATHUM: DEFAULT_PENALTY_WEIGHTS.talathum,
 };
 
+/**
+ * A criterion with scales only counts toward a candidate's total when one of
+ * its scales covers that candidate's hizbCount (see `resolveDirectCriteria`
+ * in `@tahkeem/shared`) — summing every criterion's flat `maxPoints`
+ * over-counts whenever a competition mixes mutually-exclusive rubrics per
+ * category group (e.g. young-only criteria never shown to older candidates).
+ * This resolves the real max a candidate in `hizbCount` could score.
+ */
+function resolveDirectTotalForHizb(directs: DirectDraft[], hizbCount: number): number {
+  return directs.reduce((sum, d) => {
+    if (d.scales.length === 0) return sum + (Number(d.maxPoints) || 0);
+    const scale = d.scales.find(
+      (s) => hizbCount >= s.minHizb && hizbCount <= s.maxHizb,
+    );
+    return scale ? sum + (Number(scale.maxPoints) || 0) : sum;
+  }, 0);
+}
+
 export function SettingsPage() {
   const { selectedId } = useSelectedCompetition();
   const competition = useCompetition(selectedId ?? undefined);
@@ -126,10 +144,14 @@ export function SettingsPage() {
           })),
       }));
     setDirects(directList);
-    const nextDirectTotal = directList.reduce(
-      (sum, d) => sum + (Number(d.maxPoints) || 0),
-      0,
+    const hizbCounts = data.categories.map((c) => c.hizbCount);
+    const perCategoryTotals = hizbCounts.map((h) =>
+      resolveDirectTotalForHizb(directList, h),
     );
+    const nextDirectTotal =
+      perCategoryTotals.length > 0
+        ? Math.max(...perCategoryTotals)
+        : directList.reduce((sum, d) => sum + (Number(d.maxPoints) || 0), 0);
     setTotal(round2(nextHifzBase + nextDirectTotal));
     setPenalties(
       PENALTY_ORDER.map((kind) => {
@@ -145,10 +167,26 @@ export function SettingsPage() {
     setAutoCancelThreshold(data.autoCancelFathThreshold ?? 3);
   }, [competition.data]);
 
-  const directTotal = useMemo(
-    () => directs.reduce((sum, d) => sum + (Number(d.maxPoints) || 0), 0),
-    [directs],
+  const categoryHizbCounts = useMemo(
+    () => competition.data?.categories.map((c) => c.hizbCount) ?? [],
+    [competition.data],
   );
+
+  const perCategoryDirectTotals = useMemo(
+    () => categoryHizbCounts.map((h) => resolveDirectTotalForHizb(directs, h)),
+    [directs, categoryHizbCounts],
+  );
+
+  /** The real max a candidate could score, per category — uniform in practice
+   * when every category band was designed to net the same total (as here),
+   * but shown as a range when a competition's bands genuinely differ. */
+  const directTotal =
+    perCategoryDirectTotals.length > 0
+      ? Math.max(...perCategoryDirectTotals)
+      : directs.reduce((sum, d) => sum + (Number(d.maxPoints) || 0), 0);
+  const directTotalVaries =
+    perCategoryDirectTotals.length > 0 &&
+    new Set(perCategoryDirectTotals.map((t) => round2(t))).size > 1;
 
   // Keeps hifzBase, the general-criteria sum, and the global total in sync:
   // editing one of the other two recomputes hifzBase so total stays fixed.
@@ -156,11 +194,11 @@ export function SettingsPage() {
     setDirects((list) => {
       const next = list.map((d, i) => (i === index ? { ...d, ...patch } : d));
       if (patch.maxPoints !== undefined) {
-        const nextDirectTotal = next.reduce(
-          (sum, d) => sum + (Number(d.maxPoints) || 0),
-          0,
-        );
-        setHifzBase(round2(Math.max(0, total - nextDirectTotal)));
+        const nextTotals =
+          categoryHizbCounts.length > 0
+            ? categoryHizbCounts.map((h) => resolveDirectTotalForHizb(next, h))
+            : [next.reduce((sum, d) => sum + (Number(d.maxPoints) || 0), 0)];
+        setHifzBase(round2(Math.max(0, total - Math.max(...nextTotals))));
       }
       return next;
     });
@@ -797,6 +835,12 @@ export function SettingsPage() {
                   {round2(directTotal)}
                 </span>
               </div>
+              {directTotalVaries && (
+                <p className="font-body-md text-xs text-on-surface-variant">
+                  يختلف مجموع المعايير باختلاف الصنف — القيمة المعروضة هي
+                  الحدّ الأقصى بين الأصناف.
+                </p>
+              )}
               <div className="my-2 border-t border-outline-variant" />
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium text-on-surface">الإجمالي</span>
