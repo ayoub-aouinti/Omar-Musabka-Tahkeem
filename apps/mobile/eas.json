@@ -5,7 +5,10 @@
   "build": {
     "preview": {
       "distribution": "internal",
-      "channel": "demo"
+      "channel": "demo",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://tahkeem-api.barakode.org/api"
+      }
     }
   }
 }
