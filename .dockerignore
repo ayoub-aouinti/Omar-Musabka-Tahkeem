@@ -1,0 +1,21 @@
+# Keep the build context small. Workspace package.json files are KEPT (the
+# frozen-lockfile install needs them); only heavy/irrelevant paths are dropped.
+**/node_modules
+**/dist
+**/build
+**/.turbo
+.git
+.github
+# Mobile source isn't part of the API image; its package.json stays (lockfile
+# needs it) but its large font/icon assets don't.
+apps/mobile/assets
+# Local env & logs must never leak into the image.
+.env
+**/.env
+**/.env.*
+*.log
+npm-debug.log*
+# Editor/OS noise
+.vscode
+.idea
+.DS_Store
